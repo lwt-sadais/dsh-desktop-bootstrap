@@ -137,7 +137,7 @@ node ~/.dsh/skills/gpt-image-generator/scripts/generate-image.mjs --check-config
 以下列表根据当前 `~/.dsh/profiles/desktop/package.json` 的顶层插件依赖及已安装包元数据生成。统一安装到 `desktop` Profile：
 
 ```bash
-dsh plugin add --profile desktop @linxin666/dsh-web-ui-all@0.2.7 github:FSMargoo/dsh-at-file github:MuWinds/dsh-archived-sessions github:lwt-sadais/dsh-git-diff github:lwt-sadais/dsh-local-file-reference
+dsh plugin add --profile desktop @linxin666/dsh-web-ui-all@0.2.7 github:FSMargoo/dsh-at-file github:MuWinds/dsh-archived-sessions github:lwt-sadais/dsh-git-diff github:lwt-sadais/dsh-local-file-reference github:lwt-sadais/dsh-reasoning-efforts
 ```
 
 > DSH Desktop 会为每次插件添加命令创建一个恢复事务。首次批量初始化时请保持为上述单条命令，不要拆成多条连续执行；命令成功后完全退出并重新启动 DSH Desktop，待恢复事务验证完成后再执行新的插件变更。
@@ -151,6 +151,7 @@ dsh plugin add --profile desktop @linxin666/dsh-web-ui-all@0.2.7 github:FSMargoo
 | `@muwinds/dsh-archived-sessions` | `0.2.0` | [`MuWinds/dsh-archived-sessions`](https://github.com/MuWinds/dsh-archived-sessions) | 归档会话管理 |
 | `dsh-git-diff` | `0.1.0` | [`lwt-sadais/dsh-git-diff`](https://github.com/lwt-sadais/dsh-git-diff) | Git Diff 审查 |
 | `dsh-local-file-reference` | `0.1.0` | [`lwt-sadais/dsh-local-file-reference`](https://github.com/lwt-sadais/dsh-local-file-reference) | 本地文件路径引用 |
+| `dsh-reasoning-efforts` | `0.1.0` | [`lwt-sadais/dsh-reasoning-efforts`](https://github.com/lwt-sadais/dsh-reasoning-efforts) | 按模型配置自定义 Provider 的推理等级与接口映射 |
 
 > `@deepseek-ai/dsh-base` 和 `@deepseek-ai/dsh-web-app` 是 DSH Desktop Profile 的内置基础 Bundle，不作为第三方插件重复安装。
 

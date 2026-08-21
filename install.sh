@@ -12,6 +12,7 @@ readonly PLUGINS=(
   "github:MuWinds/dsh-archived-sessions"
   "github:lwt-sadais/dsh-git-diff"
   "github:lwt-sadais/dsh-local-file-reference"
+  "github:lwt-sadais/dsh-reasoning-efforts"
 )
 readonly MINIMUM_RELEASE_AGE_EXCLUDES=(
   "@linxin666/dsh-chat-recovery@0.2.7"
