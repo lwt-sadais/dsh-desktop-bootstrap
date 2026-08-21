@@ -13,6 +13,25 @@ readonly PLUGINS=(
   "github:lwt-sadais/dsh-git-diff"
   "github:lwt-sadais/dsh-local-file-reference"
 )
+readonly MINIMUM_RELEASE_AGE_EXCLUDES=(
+  "@linxin666/dsh-chat-recovery@0.2.7"
+  "@linxin666/dsh-client-ui-aionui-panel@0.2.7"
+  "@linxin666/dsh-client-ui-community-plugins@0.2.7"
+  "@linxin666/dsh-client-ui-git-graph@0.2.7"
+  "@linxin666/dsh-client-ui-plugin-manager@0.2.7"
+  "@linxin666/dsh-client-ui-skill-explorer@0.2.7"
+  "@linxin666/dsh-client-ui-skin-center@0.2.7"
+  "@linxin666/dsh-client-ui-task-board@0.2.7"
+  "@linxin666/dsh-client-ui-web-ui-settings@0.2.7"
+  "@linxin666/dsh-desktop-launcher@0.2.7"
+  "@linxin666/dsh-liangshen@0.2.7"
+  "@linxin666/dsh-pet@0.2.7"
+  "@linxin666/dsh-remote-web-ui@0.2.7"
+  "@linxin666/dsh-skins@0.2.7"
+  "@linxin666/dsh-ssh@0.2.7"
+  "@linxin666/dsh-tool-describe-image@0.2.7"
+  "@linxin666/dsh-web-ui-all@0.2.7"
+)
 
 TEMP_DIR=""
 SOURCE_DIR=""
@@ -38,7 +57,7 @@ cleanup() {
 # 检查脚本依赖的命令，并确认当前位于 DSH Desktop 打开的专用终端。
 check_prerequisites() {
   local command_name
-  for command_name in curl tar mktemp cp date grep tee; do
+  for command_name in curl tar mktemp cp date grep tee node; do
     command -v "${command_name}" >/dev/null 2>&1 || fail "缺少命令 ${command_name}，请先安装后重试。"
   done
 
@@ -77,6 +96,34 @@ install_skills() {
   mkdir -p "${DSH_HOME}/skills" || fail "无法创建 Skills 目录。"
   cp -R "${SOURCE_DIR}/skills/." "${DSH_HOME}/skills/" || fail "安装 Skills 失败。"
   log "已合并安装用户级 Skills，现有私密配置保持不变。"
+}
+
+# 将已核对的 Web UI 精确版本加入最短发布时间豁免，同时保留用户已有配置。
+add_minimum_release_age_excludes() {
+  local current_json merged_json verified_json
+
+  command -v pnpm >/dev/null 2>&1 || fail "当前终端中找不到 pnpm，无法配置依赖供应链策略。"
+  [[ -d "${PROFILE_DIR}" ]] || fail "未找到 Desktop Profile 目录 ${PROFILE_DIR}。"
+
+  current_json="$(cd "${PROFILE_DIR}" && pnpm config get --location project --json minimumReleaseAgeExclude)" || fail "读取 Desktop Profile 的 minimumReleaseAgeExclude 配置失败。"
+  merged_json="$(node -e '
+    const current = process.argv[1] ? JSON.parse(process.argv[1]) : [];
+    const required = process.argv.slice(2);
+    process.stdout.write(JSON.stringify([...new Set([...current, ...required])]));
+  ' "${current_json}" "${MINIMUM_RELEASE_AGE_EXCLUDES[@]}")" || fail "合并 Desktop Profile 的 minimumReleaseAgeExclude 配置失败。"
+
+  (cd "${PROFILE_DIR}" && pnpm config set --location project --json minimumReleaseAgeExclude "${merged_json}") || fail "写入 Desktop Profile 的 minimumReleaseAgeExclude 配置失败。"
+  verified_json="$(cd "${PROFILE_DIR}" && pnpm config get --location project --json minimumReleaseAgeExclude)" || fail "验证 Desktop Profile 的 minimumReleaseAgeExclude 配置失败。"
+  node -e '
+    const configured = new Set(JSON.parse(process.argv[1]));
+    const missing = process.argv.slice(2).filter((entry) => !configured.has(entry));
+    if (missing.length) {
+      console.error(`缺少精确豁免：${missing.join(", ")}`);
+      process.exit(1);
+    }
+  ' "${verified_json}" "${MINIMUM_RELEASE_AGE_EXCLUDES[@]}" || fail "供应链策略配置验证失败。"
+
+  log "已保留现有策略，并加入 Web UI 0.2.7 的精确发布时间豁免。"
 }
 
 # 拒绝可选的 cpu-features 原生构建，再批准其余全部待审批依赖脚本。
@@ -143,6 +190,7 @@ main() {
   download_source
   install_agents
   install_skills
+  add_minimum_release_age_excludes
   install_plugins
   verify_installation
 

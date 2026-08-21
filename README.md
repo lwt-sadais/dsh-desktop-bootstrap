@@ -68,6 +68,7 @@ irm https://raw.githubusercontent.com/lwt-sadais/dsh-desktop-bootstrap/main/inst
 - Skills 采用合并安装，不会删除用户已有的其他 Skill，也不会创建或覆盖私密 `.env`。
 - 首次请求生成图片时，`gpt-image-generator` 会运行配置检查，并通过交互提问仅收集缺失配置；已有配置不会要求重复输入。
 - 全部 Desktop Profile 插件会通过一条 `dsh plugin add` 命令批量安装，确保整个批次只占用一个 DSH Desktop 插件恢复事务；安装完成后重启应用时再统一验证。
+- DSH 的 pnpm 默认拒绝发布不足 24 小时的依赖。脚本会保留用户已有策略，仅将已核对的 17 个 `@linxin666/*@0.2.7` 精确版本合并到 Desktop Profile 的 `minimumReleaseAgeExclude`；不会使用通配符、关闭 `minimumReleaseAge`，也不会通过 `--trust-lockfile` 跳过锁文件校验。
 - 如果 pnpm 拦截依赖构建脚本，脚本会先执行 `pnpm approve-builds !cpu-features`，明确拒绝 SSH 的可选原生加速依赖 `cpu-features`，避免没有 C++ 编译器的 Windows 电脑安装失败。
 - 排除 `cpu-features` 后，脚本会执行 `pnpm approve-builds --all` 批准其余全部待审批依赖构建脚本，然后仅重试整个插件批次一次。
 - 下载产生的临时文件会在结束时自动清理；任一关键步骤失败时脚本返回非零退出状态。

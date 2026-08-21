@@ -12,6 +12,25 @@ $Plugins = @(
     'github:lwt-sadais/dsh-git-diff',
     'github:lwt-sadais/dsh-local-file-reference'
 )
+$MinimumReleaseAgeExcludes = @(
+    '@linxin666/dsh-chat-recovery@0.2.7',
+    '@linxin666/dsh-client-ui-aionui-panel@0.2.7',
+    '@linxin666/dsh-client-ui-community-plugins@0.2.7',
+    '@linxin666/dsh-client-ui-git-graph@0.2.7',
+    '@linxin666/dsh-client-ui-plugin-manager@0.2.7',
+    '@linxin666/dsh-client-ui-skill-explorer@0.2.7',
+    '@linxin666/dsh-client-ui-skin-center@0.2.7',
+    '@linxin666/dsh-client-ui-task-board@0.2.7',
+    '@linxin666/dsh-client-ui-web-ui-settings@0.2.7',
+    '@linxin666/dsh-desktop-launcher@0.2.7',
+    '@linxin666/dsh-liangshen@0.2.7',
+    '@linxin666/dsh-pet@0.2.7',
+    '@linxin666/dsh-remote-web-ui@0.2.7',
+    '@linxin666/dsh-skins@0.2.7',
+    '@linxin666/dsh-ssh@0.2.7',
+    '@linxin666/dsh-tool-describe-image@0.2.7',
+    '@linxin666/dsh-web-ui-all@0.2.7'
+)
 $script:TempDirectory = $null
 $script:SourceDirectory = $null
 
@@ -96,6 +115,51 @@ function Invoke-CapturedCommand {
         ExitCode = $exitCode
         Output = ($output -join [Environment]::NewLine)
     }
+}
+
+# 将已核对的 Web UI 精确版本加入最短发布时间豁免，同时保留用户已有配置。
+function Add-MinimumReleaseAgeExcludes {
+    if (-not (Get-Command 'pnpm' -ErrorAction SilentlyContinue)) {
+        throw '当前终端中找不到 pnpm，无法配置依赖供应链策略。'
+    }
+    if (-not (Test-Path -LiteralPath $ProfileDirectory -PathType Container)) {
+        throw "未找到 Desktop Profile 目录 $ProfileDirectory。"
+    }
+
+    Push-Location $ProfileDirectory
+    try {
+        $currentJson = (& pnpm config get --location project --json minimumReleaseAgeExclude 2>$null | Out-String).Trim()
+        if ($LASTEXITCODE -ne 0) {
+            throw '读取 Desktop Profile 的 minimumReleaseAgeExclude 配置失败。'
+        }
+
+        $currentExcludes = @()
+        if ($currentJson) {
+            $currentExcludes = @([string[]]($currentJson | ConvertFrom-Json))
+        }
+        $mergedExcludes = [string[]]@(@($currentExcludes) + @($MinimumReleaseAgeExcludes) | Select-Object -Unique)
+        $mergedJson = ConvertTo-Json -InputObject $mergedExcludes -Compress
+
+        # Windows 的 pnpm 命令垫片经由 shell 转发参数，JSON 双引号需要保留转义。
+        $escapedJson = $mergedJson.Replace('"', '\"')
+        & pnpm config set --location project --json minimumReleaseAgeExclude $escapedJson
+        if ($LASTEXITCODE -ne 0) {
+            throw '写入 Desktop Profile 的 minimumReleaseAgeExclude 配置失败。'
+        }
+
+        $verifiedJson = (& pnpm config get --location project --json minimumReleaseAgeExclude 2>$null | Out-String).Trim()
+        $verifiedExcludes = @([string[]]($verifiedJson | ConvertFrom-Json))
+        foreach ($requiredExclude in $MinimumReleaseAgeExcludes) {
+            if ($requiredExclude -notin $verifiedExcludes) {
+                throw "供应链策略配置验证失败，缺少精确豁免 $requiredExclude。"
+            }
+        }
+    }
+    finally {
+        Pop-Location
+    }
+
+    Write-InitLog '已保留现有策略，并加入 Web UI 0.2.7 的精确发布时间豁免。'
 }
 
 # 拒绝可选的 cpu-features 原生构建，再批准其余全部待审批依赖脚本。
@@ -184,6 +248,7 @@ function Start-Initialization {
         Receive-Source
         Install-AgentsFile
         Install-UserSkills
+        Add-MinimumReleaseAgeExcludes
         Install-DesktopPlugins
         Test-Installation
         Write-InitLog '初始化完成。首次使用 gpt-image-generator 时，Skill 会自动检测并询问缺失配置。请完全退出并重新启动 DSH Desktop。'
