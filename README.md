@@ -50,7 +50,7 @@ dsh --dump-config
 在 DSH Desktop 专用终端中执行：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/lwt-sadais/dsh-desktop-bootstrap/main/install.sh | bash
+curl -fsSL "https://raw.githubusercontent.com/lwt-sadais/dsh-desktop-bootstrap/main/install.sh?t=$(date +%s)" | bash
 ```
 
 ### Windows
@@ -58,7 +58,7 @@ curl -fsSL https://raw.githubusercontent.com/lwt-sadais/dsh-desktop-bootstrap/ma
 在 DSH Desktop 专用 PowerShell 中执行：
 
 ```powershell
-irm https://raw.githubusercontent.com/lwt-sadais/dsh-desktop-bootstrap/main/install.ps1 | iex
+irm "https://raw.githubusercontent.com/lwt-sadais/dsh-desktop-bootstrap/main/install.ps1?t=$(Get-Date -Format yyyyMMddHHmmss)" | iex
 ```
 
 ### 脚本行为
