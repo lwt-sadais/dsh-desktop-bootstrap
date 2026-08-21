@@ -68,7 +68,8 @@ irm https://raw.githubusercontent.com/lwt-sadais/dsh-desktop-bootstrap/main/inst
 - Skills 采用合并安装，不会删除用户已有的其他 Skill，也不会创建或覆盖私密 `.env`。
 - 首次请求生成图片时，`gpt-image-generator` 会运行配置检查，并通过交互提问仅收集缺失配置；已有配置不会要求重复输入。
 - 全部 Desktop Profile 插件会通过一条 `dsh plugin add` 命令批量安装，确保整个批次只占用一个 DSH Desktop 插件恢复事务；安装完成后重启应用时再统一验证。
-- 如果插件安装错误明确提示执行 `pnpm approve-builds`，脚本会在 Desktop Profile 目录自动执行一次 `pnpm approve-builds --all`，然后仅重试整个插件批次一次。
+- 如果 pnpm 拦截依赖构建脚本，脚本会先执行 `pnpm approve-builds !cpu-features`，明确拒绝 SSH 的可选原生加速依赖 `cpu-features`，避免没有 C++ 编译器的 Windows 电脑安装失败。
+- 排除 `cpu-features` 后，脚本会执行 `pnpm approve-builds --all` 批准其余全部待审批依赖构建脚本，然后仅重试整个插件批次一次。
 - 下载产生的临时文件会在结束时自动清理；任一关键步骤失败时脚本返回非零退出状态。
 - 初始化完成后请完全退出并重新启动 DSH Desktop，使全局指令、Skills 与插件重新加载。
 
@@ -135,7 +136,7 @@ node ~/.dsh/skills/gpt-image-generator/scripts/generate-image.mjs --check-config
 以下列表根据当前 `~/.dsh/profiles/desktop/package.json` 的顶层插件依赖及已安装包元数据生成。统一安装到 `desktop` Profile：
 
 ```bash
-dsh plugin add --profile desktop github:zhu1090093659/dsh-web-ui github:FSMargoo/dsh-at-file github:MuWinds/dsh-archived-sessions github:lwt-sadais/dsh-git-diff github:lwt-sadais/dsh-local-file-reference
+dsh plugin add --profile desktop @linxin666/dsh-web-ui-all@0.2.7 github:FSMargoo/dsh-at-file github:MuWinds/dsh-archived-sessions github:lwt-sadais/dsh-git-diff github:lwt-sadais/dsh-local-file-reference
 ```
 
 > DSH Desktop 会为每次插件添加命令创建一个恢复事务。首次批量初始化时请保持为上述单条命令，不要拆成多条连续执行；命令成功后完全退出并重新启动 DSH Desktop，待恢复事务验证完成后再执行新的插件变更。
@@ -144,7 +145,7 @@ dsh plugin add --profile desktop github:zhu1090093659/dsh-web-ui github:FSMargoo
 
 | 当前安装项 | 检测到的版本 | GitHub 仓库 | 说明 |
 | --- | --- | --- | --- |
-| `@linxin666/dsh-web-ui-all` | `0.2.5` | [`zhu1090093659/dsh-web-ui`](https://github.com/zhu1090093659/dsh-web-ui) | Web UI 全家桶；包含任务看板、SSH、梁神模式、桌面启动器等子插件 |
+| `@linxin666/dsh-web-ui-all` | `0.2.7` | [`zhu1090093659/dsh-web-ui`](https://github.com/zhu1090093659/dsh-web-ui) | Web UI 全家桶；必须安装已发布的聚合包，不能直接安装 monorepo 根包 `github:zhu1090093659/dsh-web-ui` |
 | `dsh-at-file` | `0.6.3` | [`FSMargoo/dsh-at-file`](https://github.com/FSMargoo/dsh-at-file) | `@path` 工作区文件引用 |
 | `@muwinds/dsh-archived-sessions` | `0.2.0` | [`MuWinds/dsh-archived-sessions`](https://github.com/MuWinds/dsh-archived-sessions) | 归档会话管理 |
 | `dsh-git-diff` | `0.1.0` | [`lwt-sadais/dsh-git-diff`](https://github.com/lwt-sadais/dsh-git-diff) | Git Diff 审查 |

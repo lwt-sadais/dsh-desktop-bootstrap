@@ -6,7 +6,7 @@ $ArchiveUrl = "https://github.com/$Repository/archive/refs/heads/main.zip"
 $DshHome = Join-Path $HOME '.dsh'
 $ProfileDirectory = Join-Path $DshHome 'profiles/desktop'
 $Plugins = @(
-    'github:zhu1090093659/dsh-web-ui',
+    '@linxin666/dsh-web-ui-all@0.2.7',
     'github:FSMargoo/dsh-at-file',
     'github:MuWinds/dsh-archived-sessions',
     'github:lwt-sadais/dsh-git-diff',
@@ -98,20 +98,28 @@ function Invoke-CapturedCommand {
     }
 }
 
-# 在 Desktop Profile 中批准 pnpm 待执行的依赖构建脚本。
-function Approve-PendingBuilds {
+# 拒绝可选的 cpu-features 原生构建，再批准其余全部待审批依赖脚本。
+function Approve-PendingBuildsExceptCpuFeatures {
+    param([Parameter(Mandatory)][string]$Output)
+
     if (-not (Get-Command 'pnpm' -ErrorAction SilentlyContinue)) {
-        Write-InitLog '错误输出要求执行 pnpm approve-builds，但当前终端中找不到 pnpm。'
-        return $false
+        throw '当前终端中找不到 pnpm，无法批准依赖构建脚本。'
     }
     if (-not (Test-Path -LiteralPath $ProfileDirectory -PathType Container)) {
-        Write-InitLog "错误输出要求执行 pnpm approve-builds，但未找到 $ProfileDirectory。"
-        return $false
+        throw "未找到 Desktop Profile 目录 $ProfileDirectory。"
     }
 
-    Write-InitLog '检测到 pnpm approve-builds 提示，正在自动执行 pnpm approve-builds --all……'
     Push-Location $ProfileDirectory
     try {
+        if ($Output -match '(?m)(?:^|[\s,:])cpu-features(?:@|[\s,]|$)') {
+            Write-InitLog '正在拒绝可选原生依赖 cpu-features 的构建脚本……'
+            & pnpm approve-builds '!cpu-features'
+            if ($LASTEXITCODE -ne 0) {
+                return $false
+            }
+        }
+
+        Write-InitLog '正在批准除 cpu-features 外的全部待审批依赖构建脚本……'
         & pnpm approve-builds --all
         return ($LASTEXITCODE -eq 0)
     }
@@ -120,7 +128,7 @@ function Approve-PendingBuilds {
     }
 }
 
-# 在单个恢复事务中安装全部插件；检测到 approve-builds 提示时批准后仅重试一次。
+# 在单个恢复事务中安装全部插件；忽略 cpu-features 后批准其余全部并重试一次。
 function Install-DesktopPlugins {
     $arguments = @('plugin', 'add', '--profile', 'desktop') + $Plugins
 
@@ -131,9 +139,9 @@ function Install-DesktopPlugins {
         return
     }
 
-    if ($result.Output -match '(?i)pnpm\s+approve-builds') {
-        if (-not (Approve-PendingBuilds)) {
-            throw 'Desktop Profile 插件安装失败，且无法批准 pnpm 待执行的依赖构建脚本。'
+    if ($result.Output -match '(?i)pnpm\s+approve-builds|ERR_PNPM_IGNORED_BUILDS') {
+        if (-not (Approve-PendingBuildsExceptCpuFeatures -Output $result.Output)) {
+            throw 'Desktop Profile 插件依赖构建审批失败。请查看上方 pnpm 输出。'
         }
         Write-InitLog '正在重试 Desktop Profile 插件批量安装……'
         $retryResult = Invoke-CapturedCommand -FilePath 'dsh' -ArgumentList $arguments

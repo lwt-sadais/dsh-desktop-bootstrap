@@ -7,7 +7,7 @@ readonly ARCHIVE_URL="https://github.com/${REPOSITORY}/archive/refs/heads/main.t
 readonly DSH_HOME="${HOME}/.dsh"
 readonly PROFILE_DIR="${DSH_HOME}/profiles/desktop"
 readonly PLUGINS=(
-  "github:zhu1090093659/dsh-web-ui"
+  "@linxin666/dsh-web-ui-all@0.2.7"
   "github:FSMargoo/dsh-at-file"
   "github:MuWinds/dsh-archived-sessions"
   "github:lwt-sadais/dsh-git-diff"
@@ -79,22 +79,23 @@ install_skills() {
   log "已合并安装用户级 Skills，现有私密配置保持不变。"
 }
 
-# 在 Desktop Profile 中批准 pnpm 待执行的依赖构建脚本。
-approve_pending_builds() {
-  command -v pnpm >/dev/null 2>&1 || {
-    log "错误输出要求执行 pnpm approve-builds，但当前终端中找不到 pnpm。"
-    return 1
-  }
-  [[ -d "${PROFILE_DIR}" ]] || {
-    log "错误输出要求执行 pnpm approve-builds，但未找到 ${PROFILE_DIR}。"
-    return 1
-  }
+# 拒绝可选的 cpu-features 原生构建，再批准其余全部待审批依赖脚本。
+approve_pending_builds_except_cpu_features() {
+  local output_file="$1"
 
-  log "检测到 pnpm approve-builds 提示，正在自动执行 pnpm approve-builds --all……"
+  command -v pnpm >/dev/null 2>&1 || return 1
+  [[ -d "${PROFILE_DIR}" ]] || return 1
+
+  if grep -qiE '(^|[[:space:],:])cpu-features(@|[[:space:],]|$)' "${output_file}"; then
+    log "正在拒绝可选原生依赖 cpu-features 的构建脚本……"
+    (cd "${PROFILE_DIR}" && pnpm approve-builds '!cpu-features') || return 1
+  fi
+
+  log "正在批准除 cpu-features 外的全部待审批依赖构建脚本……"
   (cd "${PROFILE_DIR}" && pnpm approve-builds --all)
 }
 
-# 在单个恢复事务中安装全部插件；检测到 approve-builds 提示时批准后仅重试一次。
+# 在单个恢复事务中安装全部插件；忽略 cpu-features 后批准其余全部并重试一次。
 install_plugins() {
   local output_file="${TEMP_DIR}/plugin-output.log"
   local status
@@ -108,8 +109,8 @@ install_plugins() {
     return 0
   fi
 
-  if grep -qiE 'pnpm[[:space:]]+approve-builds' "${output_file}"; then
-    approve_pending_builds || fail "Desktop Profile 插件安装失败，且无法批准 pnpm 待执行的依赖构建脚本。"
+  if grep -qiE 'pnpm[[:space:]]+approve-builds|ERR_PNPM_IGNORED_BUILDS' "${output_file}"; then
+    approve_pending_builds_except_cpu_features "${output_file}" || fail "Desktop Profile 插件依赖构建审批失败，请查看上方 pnpm 输出。"
     log "正在重试 Desktop Profile 插件批量安装……"
     dsh plugin add --profile desktop "${PLUGINS[@]}" || fail "Desktop Profile 插件批量安装重试失败。"
     log "已完成 Desktop Profile 插件安装。"
