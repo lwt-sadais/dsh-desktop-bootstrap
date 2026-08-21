@@ -9,6 +9,8 @@
 ```text
 .
 ├── AGENTS.md
+├── install.ps1
+├── install.sh
 └── skills
     ├── commit
     │   ├── SKILL.md
@@ -22,19 +24,65 @@
 
 ## 前置条件
 
-- 已安装 DSH Desktop。
-- 终端中可以执行 `dsh`。
-- 已安装 Git，用于克隆本仓库。
+- 已安装并启动 DSH Desktop。
+- 必须从 DSH Desktop 应用内打开其专用终端；普通 macOS 终端或普通 Windows PowerShell 无法直接识别 `dsh`。
+- 手动安装时需使用 Git 克隆本仓库；一键初始化脚本不依赖本机 Git。
 - 安装 GitHub 插件时需要能够访问 GitHub。
 
-## 一、克隆仓库
+## 一键初始化（推荐）
+
+脚本会下载本仓库的默认分支，备份并安装全局 `AGENTS.md`、合并用户级 Skills，并安装本文列出的 Desktop Profile 插件。安装过程不会创建或覆盖任何 Skill 的私密 `.env`。
+
+### 第一步：打开 DSH Desktop 专用终端
+
+先启动 DSH Desktop，然后从应用内打开 **DSH Desktop 专用终端**。该终端会为当前 Desktop Profile 注入 `dsh` 和配套的 `pnpm` 命令；请勿在普通系统终端中执行下方命令。
+
+可先执行以下命令确认环境：
+
+```text
+dsh --dump-config
+```
+
+能够正常输出配置后，再根据系统执行对应的一键命令。
+
+### macOS
+
+在 DSH Desktop 专用终端中执行：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/lwt-sadais/dsh-desktop-bootstrap/main/install.sh | bash
+```
+
+### Windows
+
+在 DSH Desktop 专用 PowerShell 中执行：
+
+```powershell
+irm https://raw.githubusercontent.com/lwt-sadais/dsh-desktop-bootstrap/main/install.ps1 | iex
+```
+
+### 脚本行为
+
+- 脚本首先检查当前终端能否执行 `dsh`；如果不能，会提示回到 DSH Desktop 应用内打开专用终端。
+- 如果 `~/.dsh/AGENTS.md` 已存在，会先按时间戳备份为 `AGENTS.md.backup.<时间戳>`。
+- Skills 采用合并安装，不会删除用户已有的其他 Skill，也不会创建或覆盖私密 `.env`。
+- 首次请求生成图片时，`gpt-image-generator` 会运行配置检查，并通过交互提问仅收集缺失配置；已有配置不会要求重复输入。
+- 如果插件安装错误明确提示执行 `pnpm approve-builds`，脚本会在 Desktop Profile 目录自动执行一次 `pnpm approve-builds --all`，然后仅重试当前插件一次。
+- 下载产生的临时文件会在结束时自动清理；任一关键步骤失败时脚本返回非零退出状态。
+- 初始化完成后请完全退出并重新启动 DSH Desktop，使全局指令、Skills 与插件重新加载。
+
+> 远程一行命令会直接执行本仓库默认分支中的脚本。如需先审计内容，请查看 [`install.sh`](install.sh) 或 [`install.ps1`](install.ps1)，也可以按照下方步骤手动安装。
+
+## 手动安装
+
+### 一、克隆仓库
 
 ```bash
 git clone https://github.com/lwt-sadais/dsh-desktop-bootstrap.git
 cd dsh-desktop-bootstrap
 ```
 
-## 二、安装 AGENTS.md
+### 二、安装 AGENTS.md
 
 先创建 DSH 用户目录；如果本机已有 `~/.dsh/AGENTS.md`，建议先备份：
 
@@ -59,27 +107,23 @@ cp -R skills/. ~/.dsh/skills/
 
 ### 配置 gpt-image-generator
 
-仓库只保存占位配置，不保存原始凭据或服务地址。安装后复制示例文件，并将三个占位符替换为新环境中的真实值：
+仓库只保存 `.env.example` 配置结构，不保存原始凭据或服务地址。安装时不要将其中的 `<REDACTED_...>` 占位符复制为真实 `.env`。
 
-```bash
-cp ~/.dsh/skills/gpt-image-generator/.env.example \
-  ~/.dsh/skills/gpt-image-generator/.env
-chmod 0600 ~/.dsh/skills/gpt-image-generator/.env
-```
-
-需要配置：
+首次向 AI 请求生成图片时，`gpt-image-generator` Skill 会自动执行配置检查。如果 `.env` 不存在、为空或缺少字段，AI 会通过交互提问仅收集以下缺失项：
 
 - `SADAIS_IMAGE_API_KEY`
 - `SADAIS_IMAGE_BASE_URL`
 - `SADAIS_IMAGE_MODEL`
 
-配置完成后可执行检查：
+收集完成后，Skill 会将配置写入 `~/.dsh/skills/gpt-image-generator/.env`、设置为 `0600` 权限并重新检查。已有字段保持原值，不会要求重复输入。
+
+如需自行检查配置完整性，可执行：
 
 ```bash
 node ~/.dsh/skills/gpt-image-generator/scripts/generate-image.mjs --check-config
 ```
 
-预期结果：
+完整配置的预期结果：
 
 ```json
 {"configured":true,"missing":[]}
@@ -125,7 +169,7 @@ dsh plugin add --profile desktop github:lwt-sadais/dsh-local-file-reference
 
 ## 安全说明
 
-- 原始 `~/.dsh/skills/gpt-image-generator/.env` 未复制到仓库。
-- 仓库使用 `.env.example` 保存配置结构，值均为明确的 `<REDACTED_...>` 占位符。
+- 原始 `~/.dsh/skills/gpt-image-generator/.env` 未复制到仓库，安装脚本也不会创建或覆盖该文件。
+- 仓库使用 `.env.example` 保存配置结构，值均为明确的 `<REDACTED_...>` 占位符；这些占位符不会作为真实配置安装。
 - `.gitignore` 会忽略所有 `.env` 私密配置，但允许提交 `.env.example`。
 - 提交或更新前仍应执行敏感信息扫描，避免把本机新增的凭据、私有服务地址、Cookie、认证头或私钥推送到公开仓库。
