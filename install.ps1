@@ -120,42 +120,30 @@ function Approve-PendingBuilds {
     }
 }
 
-# 安装单个插件；检测到 approve-builds 提示时批准后仅重试一次。
-function Install-DesktopPlugin {
-    param([Parameter(Mandatory)][string]$Plugin)
+# 在单个恢复事务中安装全部插件；检测到 approve-builds 提示时批准后仅重试一次。
+function Install-DesktopPlugins {
+    $arguments = @('plugin', 'add', '--profile', 'desktop') + $Plugins
 
-    Write-InitLog "正在安装插件 $Plugin……"
-    $result = Invoke-CapturedCommand -FilePath 'dsh' -ArgumentList @('plugin', 'add', '--profile', 'desktop', $Plugin)
+    Write-InitLog "正在安装 Desktop Profile 插件：$($Plugins -join ', ')……"
+    $result = Invoke-CapturedCommand -FilePath 'dsh' -ArgumentList $arguments
     if ($result.ExitCode -eq 0) {
-        return $true
+        Write-InitLog '已完成 Desktop Profile 插件安装。'
+        return
     }
 
     if ($result.Output -match '(?i)pnpm\s+approve-builds') {
         if (-not (Approve-PendingBuilds)) {
-            return $false
+            throw 'Desktop Profile 插件安装失败，且无法批准 pnpm 待执行的依赖构建脚本。'
         }
-        Write-InitLog "正在重试插件 $Plugin……"
-        $retryResult = Invoke-CapturedCommand -FilePath 'dsh' -ArgumentList @('plugin', 'add', '--profile', 'desktop', $Plugin)
-        return ($retryResult.ExitCode -eq 0)
-    }
-
-    return $false
-}
-
-# 顺序安装 README 声明的全部 Desktop Profile 插件并汇总失败项。
-function Install-DesktopPlugins {
-    $failedPlugins = @()
-    foreach ($plugin in $Plugins) {
-        if (-not (Install-DesktopPlugin -Plugin $plugin)) {
-            Write-InitLog "插件安装失败：$plugin"
-            $failedPlugins += $plugin
+        Write-InitLog '正在重试 Desktop Profile 插件批量安装……'
+        $retryResult = Invoke-CapturedCommand -FilePath 'dsh' -ArgumentList $arguments
+        if ($retryResult.ExitCode -eq 0) {
+            Write-InitLog '已完成 Desktop Profile 插件安装。'
+            return
         }
     }
 
-    if ($failedPlugins.Count -gt 0) {
-        throw "一个或多个插件安装失败：$($failedPlugins -join ', ')"
-    }
-    Write-InitLog '已完成 Desktop Profile 插件安装。'
+    throw "Desktop Profile 插件安装失败：$($Plugins -join ', ')"
 }
 
 # 验证关键文件均已落盘，避免仅凭命令退出状态判断初始化成功。

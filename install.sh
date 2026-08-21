@@ -94,44 +94,29 @@ approve_pending_builds() {
   (cd "${PROFILE_DIR}" && pnpm approve-builds --all)
 }
 
-# 安装单个插件；检测到 approve-builds 提示时批准后仅重试一次。
-install_plugin() {
-  local plugin="$1"
+# 在单个恢复事务中安装全部插件；检测到 approve-builds 提示时批准后仅重试一次。
+install_plugins() {
   local output_file="${TEMP_DIR}/plugin-output.log"
   local status
 
-  log "正在安装插件 ${plugin}……"
+  log "正在批量安装 Desktop Profile 插件：${PLUGINS[*]}……"
   : >"${output_file}"
-  dsh plugin add --profile desktop "${plugin}" > >(tee "${output_file}") 2>&1
+  dsh plugin add --profile desktop "${PLUGINS[@]}" > >(tee "${output_file}") 2>&1
   status=$?
   if [[ ${status} -eq 0 ]]; then
+    log "已完成 Desktop Profile 插件安装。"
     return 0
   fi
 
   if grep -qiE 'pnpm[[:space:]]+approve-builds' "${output_file}"; then
-    approve_pending_builds || return 1
-    log "正在重试插件 ${plugin}……"
-    dsh plugin add --profile desktop "${plugin}"
-    return $?
+    approve_pending_builds || fail "Desktop Profile 插件安装失败，且无法批准 pnpm 待执行的依赖构建脚本。"
+    log "正在重试 Desktop Profile 插件批量安装……"
+    dsh plugin add --profile desktop "${PLUGINS[@]}" || fail "Desktop Profile 插件批量安装重试失败。"
+    log "已完成 Desktop Profile 插件安装。"
+    return 0
   fi
 
-  return "${status}"
-}
-
-# 顺序安装 README 声明的全部 Desktop Profile 插件并汇总失败项。
-install_plugins() {
-  local plugin
-  local failed=0
-
-  for plugin in "${PLUGINS[@]}"; do
-    if ! install_plugin "${plugin}"; then
-      log "插件安装失败：${plugin}"
-      failed=1
-    fi
-  done
-
-  [[ ${failed} -eq 0 ]] || fail "一个或多个插件安装失败，请根据上方错误处理后重试。"
-  log "已完成 Desktop Profile 插件安装。"
+  fail "Desktop Profile 插件安装失败，请根据上方错误处理后重试。"
 }
 
 # 验证关键文件均已落盘，避免仅凭命令退出状态判断初始化成功。
