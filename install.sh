@@ -6,8 +6,11 @@ readonly REPOSITORY="lwt-sadais/dsh-desktop-bootstrap"
 readonly ARCHIVE_URL="https://github.com/${REPOSITORY}/archive/refs/heads/main.tar.gz"
 readonly DSH_HOME="${HOME}/.dsh"
 readonly PROFILE_DIR="${DSH_HOME}/profiles/desktop"
+readonly BETTER_SIDEBAR_FORK="github:lwt-sadais/DSH-better-sidebar#0465d33db156bbeaf3fdb8e944bc9e7818bdb613"
+readonly BETTER_SIDEBAR_BUILD_KEY="dsh-better-sidebar@https://codeload.github.com/lwt-sadais/DSH-better-sidebar/tar.gz/0465d33db156bbeaf3fdb8e944bc9e7818bdb613"
 readonly PLUGINS=(
   "@linxin666/dsh-web-ui-all@0.2.7"
+  "${BETTER_SIDEBAR_FORK}"
   "github:FSMargoo/dsh-at-file"
   "github:MuWinds/dsh-archived-sessions"
   "github:lwt-sadais/dsh-git-diff"
@@ -143,6 +146,32 @@ approve_pending_builds_except_cpu_features() {
   (cd "${PROFILE_DIR}" && pnpm approve-builds --all)
 }
 
+# 允许固定提交的 Fork 执行 prepare 构建；键精确到 codeload URL，不放宽其它 GitHub 包。
+enable_better_sidebar_build() {
+  local current_json merged_json verified_json
+
+  current_json="$(cd "${PROFILE_DIR}" && pnpm config get --location project --json allowBuilds)" \
+    || fail "读取 Desktop Profile 的 allowBuilds 失败。"
+  merged_json="$(node -e '
+    const raw = process.argv[1];
+    const current = raw && raw !== "null" && raw !== "undefined" ? JSON.parse(raw) : {};
+    current[process.argv[2]] = true;
+    process.stdout.write(JSON.stringify(current));
+  ' "${current_json}" "${BETTER_SIDEBAR_BUILD_KEY}")" \
+    || fail "合并 Desktop Profile 的 better-sidebar allowBuilds 失败。"
+  (cd "${PROFILE_DIR}" && pnpm config set --location project --json allowBuilds "${merged_json}") \
+    || fail "写入 Desktop Profile 的 better-sidebar allowBuilds 失败。"
+  verified_json="$(cd "${PROFILE_DIR}" && pnpm config get --location project --json allowBuilds)" \
+    || fail "验证 Desktop Profile 的 better-sidebar allowBuilds 失败。"
+  node -e '
+    const configured = JSON.parse(process.argv[1]);
+    if (configured[process.argv[2]] !== true) process.exit(1);
+  ' "${verified_json}" "${BETTER_SIDEBAR_BUILD_KEY}" \
+    || fail "better-sidebar allowBuilds 验证失败，读取到：${verified_json}"
+
+  log "已批准固定 better-sidebar Fork 提交执行构建脚本。"
+}
+
 # 在单个恢复事务中安装全部插件；忽略 cpu-features 后批准其余全部并重试一次。
 install_plugins() {
   local output_file="${TEMP_DIR}/plugin-output.log"
@@ -192,6 +221,7 @@ main() {
   install_agents
   install_skills
   add_minimum_release_age_excludes
+  enable_better_sidebar_build
   install_plugins
   verify_installation
 

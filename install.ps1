@@ -5,8 +5,11 @@ $Repository = 'lwt-sadais/dsh-desktop-bootstrap'
 $ArchiveUrl = "https://github.com/$Repository/archive/refs/heads/main.zip"
 $DshHome = Join-Path $HOME '.dsh'
 $ProfileDirectory = Join-Path $DshHome 'profiles/desktop'
+$BetterSidebarFork = 'github:lwt-sadais/DSH-better-sidebar#0465d33db156bbeaf3fdb8e944bc9e7818bdb613'
+$BetterSidebarBuildKey = 'dsh-better-sidebar@https://codeload.github.com/lwt-sadais/DSH-better-sidebar/tar.gz/0465d33db156bbeaf3fdb8e944bc9e7818bdb613'
 $Plugins = @(
     '@linxin666/dsh-web-ui-all@0.2.7',
+    $BetterSidebarFork,
     'github:FSMargoo/dsh-at-file',
     'github:MuWinds/dsh-archived-sessions',
     'github:lwt-sadais/dsh-git-diff',
@@ -193,6 +196,45 @@ function Approve-PendingBuildsExceptCpuFeatures {
     }
 }
 
+# 允许固定提交的 Fork 执行 prepare 构建；键精确到 codeload URL，不放宽其它 GitHub 包。
+function Enable-BetterSidebarBuild {
+    if (-not (Get-Command 'pnpm' -ErrorAction SilentlyContinue)) {
+        throw '当前终端中找不到 pnpm，无法批准 better-sidebar Fork 构建。'
+    }
+
+    Push-Location $ProfileDirectory
+    try {
+        $currentJson = (& pnpm config get --location project --json allowBuilds 2>$null | Out-String).Trim()
+        if ($LASTEXITCODE -ne 0) {
+            throw '读取 Desktop Profile 的 allowBuilds 失败。'
+        }
+        $merged = [ordered]@{}
+        if ($currentJson -and $currentJson -ne 'null' -and $currentJson -ne 'undefined') {
+            $current = $currentJson | ConvertFrom-Json
+            foreach ($property in $current.PSObject.Properties) {
+                $merged[$property.Name] = $property.Value
+            }
+        }
+        $merged[$BetterSidebarBuildKey] = $true
+        $mergedJson = ConvertTo-Json -InputObject $merged -Compress
+        $escapedJson = $mergedJson.Replace('"', '\"')
+        & pnpm config set --location project --json allowBuilds $escapedJson
+        if ($LASTEXITCODE -ne 0) {
+            throw '写入 Desktop Profile 的 better-sidebar allowBuilds 失败。'
+        }
+        $verifiedJson = (& pnpm config get --location project --json allowBuilds 2>$null | Out-String).Trim()
+        $verified = $verifiedJson | ConvertFrom-Json
+        if ($verified.$BetterSidebarBuildKey -ne $true) {
+            throw "better-sidebar allowBuilds 验证失败，读取到：$verifiedJson"
+        }
+    }
+    finally {
+        Pop-Location
+    }
+
+    Write-InitLog '已批准固定 better-sidebar Fork 提交执行构建脚本。'
+}
+
 # 在单个恢复事务中安装全部插件；忽略 cpu-features 后批准其余全部并重试一次。
 function Install-DesktopPlugins {
     $arguments = @('plugin', 'add', '--profile', 'desktop') + $Plugins
@@ -250,6 +292,7 @@ function Start-Initialization {
         Install-AgentsFile
         Install-UserSkills
         Add-MinimumReleaseAgeExcludes
+        Enable-BetterSidebarBuild
         Install-DesktopPlugins
         Test-Installation
         Write-InitLog '初始化完成。首次使用 gpt-image-generator 时，Skill 会自动检测并询问缺失配置。请完全退出并重新启动 DSH Desktop。'
