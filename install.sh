@@ -8,6 +8,9 @@ readonly DSH_HOME="${HOME}/.dsh"
 readonly PROFILE_DIR="${DSH_HOME}/profiles/desktop"
 readonly BETTER_SIDEBAR_FORK="github:lwt-sadais/DSH-better-sidebar#0465d33db156bbeaf3fdb8e944bc9e7818bdb613"
 readonly BETTER_SIDEBAR_BUILD_KEY="dsh-better-sidebar@https://codeload.github.com/lwt-sadais/DSH-better-sidebar/tar.gz/0465d33db156bbeaf3fdb8e944bc9e7818bdb613"
+readonly CODEX_PRESET_ID="codex-mode"
+readonly AGENT_PRESETS_DIR="${DSH_HOME}/.agent-presets"
+readonly SETTINGS_FILE="${DSH_HOME}/settings.yaml"
 readonly PLUGINS=(
   "@linxin666/dsh-web-ui-all@0.2.7"
   "${BETTER_SIDEBAR_FORK}"
@@ -100,6 +103,65 @@ install_skills() {
   mkdir -p "${DSH_HOME}/skills" || fail "无法创建 Skills 目录。"
   cp -R "${SOURCE_DIR}/skills/." "${DSH_HOME}/skills/" || fail "安装 Skills 失败。"
   log "已合并安装用户级 Skills，现有私密配置保持不变。"
+}
+
+# 备份已有同名 Agent 预设，并安装仓库中的 Codex 模式。
+install_agent_presets() {
+  local source_path="${SOURCE_DIR}/agent-presets/${CODEX_PRESET_ID}"
+  local target_path="${AGENT_PRESETS_DIR}/${CODEX_PRESET_ID}"
+  local backup_path
+
+  [[ -f "${source_path}/agent.cordis.yml" && -f "${source_path}/preset.yml" ]] || fail "初始化资源中缺少 Codex 模式预设。"
+  mkdir -p "${AGENT_PRESETS_DIR}" || fail "无法创建 Agent 预设目录。"
+
+  if [[ -e "${target_path}" || -L "${target_path}" ]]; then
+    backup_path="${target_path}.backup.$(date +%Y%m%d%H%M%S)"
+    cp -R -L "${target_path}" "${backup_path}" || fail "备份现有 Codex 模式失败。"
+    log "已备份现有 Codex 模式：${backup_path}"
+    rm -rf "${target_path}" || fail "清理现有 Codex 模式失败。"
+  fi
+
+  cp -R "${source_path}" "${target_path}" || fail "安装 Codex 模式失败。"
+  chmod -R u+rwX,go-rwx "${target_path}" || fail "设置 Codex 模式权限失败。"
+  log "已安装 Codex 模式。"
+}
+
+# 保留其余用户设置，仅将新会话的默认 Agent 预设设为 Codex 模式。
+set_default_agent_preset() {
+  local yaml_module="${PROFILE_DIR}/node_modules/yaml"
+
+  [[ -d "${yaml_module}" ]] || fail "未找到 Desktop Profile 的 yaml 依赖，无法安全更新 ${SETTINGS_FILE}。"
+  mkdir -p "${DSH_HOME}" || fail "无法创建 ${DSH_HOME}。"
+  SETTINGS_FILE="${SETTINGS_FILE}" YAML_MODULE="${yaml_module}" CODEX_PRESET_ID="${CODEX_PRESET_ID}" node --input-type=module <<'NODE' || fail "设置默认 Agent 预设失败。"
+import { readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
+import { pathToFileURL } from 'node:url'
+
+const settingsFile = process.env.SETTINGS_FILE
+const yamlModule = process.env.YAML_MODULE
+const presetId = process.env.CODEX_PRESET_ID
+const require = createRequire(import.meta.url)
+const { parseDocument } = await import(pathToFileURL(require.resolve(yamlModule)).href)
+let source = ''
+try {
+  source = await readFile(settingsFile, 'utf8')
+} catch (error) {
+  if (error?.code !== 'ENOENT') throw error
+}
+const document = parseDocument(source)
+if (document.errors.length > 0) throw document.errors[0]
+document.setIn(['agent-presets', 'default'], presetId)
+const temporaryFile = `${settingsFile}.tmp-${process.pid}`
+try {
+  await writeFile(temporaryFile, document.toString(), { flag: 'wx', mode: 0o600 })
+  await rename(temporaryFile, settingsFile)
+} catch (error) {
+  await rm(temporaryFile, { force: true })
+  throw error
+}
+NODE
+  chmod 0600 "${SETTINGS_FILE}" || fail "设置 ${SETTINGS_FILE} 权限失败。"
+  log "已将默认 Agent 预设设为 Codex 模式。"
 }
 
 # 将已核对的 Web UI 精确版本加入最短发布时间豁免，同时保留用户已有配置。
@@ -204,13 +266,25 @@ verify_installation() {
     "${DSH_HOME}/AGENTS.md"
     "${DSH_HOME}/skills/commit/SKILL.md"
     "${DSH_HOME}/skills/gpt-image-generator/SKILL.md"
+    "${AGENT_PRESETS_DIR}/${CODEX_PRESET_ID}/agent.cordis.yml"
+    "${AGENT_PRESETS_DIR}/${CODEX_PRESET_ID}/preset.yml"
   )
 
   for required_path in "${required_paths[@]}"; do
     [[ -f "${required_path}" ]] || fail "验证失败，未找到 ${required_path}。"
   done
 
-  log "文件验证通过。"
+  SETTINGS_FILE="${SETTINGS_FILE}" YAML_MODULE="${PROFILE_DIR}/node_modules/yaml" CODEX_PRESET_ID="${CODEX_PRESET_ID}" node --input-type=module <<'NODE' || fail "验证失败，默认 Agent 预设不是 Codex 模式。"
+import { readFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
+import { pathToFileURL } from 'node:url'
+
+const require = createRequire(import.meta.url)
+const { parse } = await import(pathToFileURL(require.resolve(process.env.YAML_MODULE)).href)
+const settings = parse(await readFile(process.env.SETTINGS_FILE, 'utf8'))
+if (settings?.['agent-presets']?.default !== process.env.CODEX_PRESET_ID) process.exit(1)
+NODE
+  log "文件与默认 Agent 预设验证通过。"
 }
 
 # 按固定顺序执行初始化流程，确保失败时立即停止后续关键步骤。
@@ -220,6 +294,8 @@ main() {
   download_source
   install_agents
   install_skills
+  install_agent_presets
+  set_default_agent_preset
   add_minimum_release_age_excludes
   enable_better_sidebar_build
   install_plugins

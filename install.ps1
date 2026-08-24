@@ -7,6 +7,9 @@ $DshHome = Join-Path $HOME '.dsh'
 $ProfileDirectory = Join-Path $DshHome 'profiles/desktop'
 $BetterSidebarFork = 'github:lwt-sadais/DSH-better-sidebar#0465d33db156bbeaf3fdb8e944bc9e7818bdb613'
 $BetterSidebarBuildKey = 'dsh-better-sidebar@https://codeload.github.com/lwt-sadais/DSH-better-sidebar/tar.gz/0465d33db156bbeaf3fdb8e944bc9e7818bdb613'
+$CodexPresetId = 'codex-mode'
+$AgentPresetsDirectory = Join-Path $DshHome '.agent-presets'
+$SettingsFile = Join-Path $DshHome 'settings.yaml'
 $Plugins = @(
     '@linxin666/dsh-web-ui-all@0.2.7',
     $BetterSidebarFork,
@@ -50,6 +53,9 @@ function Test-Prerequisites {
     if (-not (Get-Command 'dsh' -ErrorAction SilentlyContinue)) {
         throw '当前终端无法执行 dsh。请启动 DSH Desktop，从应用内打开 DSH Desktop 专用终端，再在该终端中重新执行本命令；普通 PowerShell 无法直接使用 dsh。'
     }
+    if (-not (Get-Command 'node' -ErrorAction SilentlyContinue)) {
+        throw '当前终端中找不到 node，无法安全更新 DSH 用户设置。'
+    }
 }
 
 # 下载默认分支源码压缩包并解析仓库根目录。
@@ -91,6 +97,90 @@ function Install-UserSkills {
     New-Item -ItemType Directory -Path $skillsTarget -Force | Out-Null
     Copy-Item -Path (Join-Path $skillsSource '*') -Destination $skillsTarget -Recurse -Force
     Write-InitLog '已合并安装用户级 Skills，现有私密配置保持不变。'
+}
+
+# 备份已有同名 Agent 预设，并安装仓库中的 Codex 模式。
+function Install-AgentPresets {
+    $sourcePath = Join-Path $script:SourceDirectory "agent-presets/$CodexPresetId"
+    $targetPath = Join-Path $AgentPresetsDirectory $CodexPresetId
+    $compositionPath = Join-Path $sourcePath 'agent.cordis.yml'
+    $metadataPath = Join-Path $sourcePath 'preset.yml'
+
+    if (-not (Test-Path -LiteralPath $compositionPath -PathType Leaf) -or -not (Test-Path -LiteralPath $metadataPath -PathType Leaf)) {
+        throw '初始化资源中缺少 Codex 模式预设。'
+    }
+    New-Item -ItemType Directory -Path $AgentPresetsDirectory -Force | Out-Null
+
+    if (Test-Path -LiteralPath $targetPath) {
+        $timestamp = Get-Date -Format 'yyyyMMddHHmmss'
+        $backupPath = "$targetPath.backup.$timestamp"
+        Copy-Item -LiteralPath $targetPath -Destination $backupPath -Recurse -Force
+        Write-InitLog "已备份现有 Codex 模式：$backupPath"
+        Remove-Item -LiteralPath $targetPath -Recurse -Force
+    }
+
+    Copy-Item -LiteralPath $sourcePath -Destination $targetPath -Recurse -Force
+    Write-InitLog '已安装 Codex 模式。'
+}
+
+# 保留其余用户设置，仅将新会话的默认 Agent 预设设为 Codex 模式。
+function Set-DefaultAgentPreset {
+    $yamlModule = Join-Path $ProfileDirectory 'node_modules/yaml'
+    if (-not (Test-Path -LiteralPath $yamlModule -PathType Container)) {
+        throw "未找到 Desktop Profile 的 yaml 依赖，无法安全更新 $SettingsFile。"
+    }
+    New-Item -ItemType Directory -Path $DshHome -Force | Out-Null
+
+    $nodeScript = @'
+const { readFile, rename, rm, writeFile } = require('node:fs/promises')
+const { pathToFileURL } = require('node:url')
+
+;(async () => {
+  const settingsFile = process.env.DSH_SETTINGS_FILE
+  const yamlModule = process.env.DSH_YAML_MODULE
+  const presetId = process.env.DSH_CODEX_PRESET_ID
+  const { parseDocument } = await import(pathToFileURL(require.resolve(yamlModule)).href)
+  let source = ''
+  try {
+    source = await readFile(settingsFile, 'utf8')
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error
+  }
+  const document = parseDocument(source)
+  if (document.errors.length > 0) throw document.errors[0]
+  document.setIn(['agent-presets', 'default'], presetId)
+  const temporaryFile = `${settingsFile}.tmp-${process.pid}`
+  try {
+    await writeFile(temporaryFile, document.toString(), { flag: 'wx', mode: 0o600 })
+    await rename(temporaryFile, settingsFile)
+  } catch (error) {
+    await rm(temporaryFile, { force: true })
+    throw error
+  }
+})().catch((error) => {
+  console.error(error)
+  process.exit(1)
+})
+'@
+
+    $previousSettingsFile = $env:DSH_SETTINGS_FILE
+    $previousYamlModule = $env:DSH_YAML_MODULE
+    $previousPresetId = $env:DSH_CODEX_PRESET_ID
+    try {
+        $env:DSH_SETTINGS_FILE = $SettingsFile
+        $env:DSH_YAML_MODULE = $yamlModule
+        $env:DSH_CODEX_PRESET_ID = $CodexPresetId
+        $nodeScript | & node
+        if ($LASTEXITCODE -ne 0) {
+            throw '设置默认 Agent 预设失败。'
+        }
+    }
+    finally {
+        $env:DSH_SETTINGS_FILE = $previousSettingsFile
+        $env:DSH_YAML_MODULE = $previousYamlModule
+        $env:DSH_CODEX_PRESET_ID = $previousPresetId
+    }
+    Write-InitLog '已将默认 Agent 预设设为 Codex 模式。'
 }
 
 # 执行外部命令，同时实时显示并返回合并后的标准输出与错误输出。
@@ -266,7 +356,9 @@ function Test-Installation {
     $requiredPaths = @(
         (Join-Path $DshHome 'AGENTS.md'),
         (Join-Path $DshHome 'skills/commit/SKILL.md'),
-        (Join-Path $DshHome 'skills/gpt-image-generator/SKILL.md')
+        (Join-Path $DshHome 'skills/gpt-image-generator/SKILL.md'),
+        (Join-Path $AgentPresetsDirectory "$CodexPresetId/agent.cordis.yml"),
+        (Join-Path $AgentPresetsDirectory "$CodexPresetId/preset.yml")
     )
 
     foreach ($requiredPath in $requiredPaths) {
@@ -274,7 +366,38 @@ function Test-Installation {
             throw "验证失败，未找到 $requiredPath。"
         }
     }
-    Write-InitLog '文件验证通过。'
+
+    $verifyScript = @'
+const { readFile } = require('node:fs/promises')
+const { pathToFileURL } = require('node:url')
+
+;(async () => {
+  const { parse } = await import(pathToFileURL(require.resolve(process.env.DSH_YAML_MODULE)).href)
+  const settings = parse(await readFile(process.env.DSH_SETTINGS_FILE, 'utf8'))
+  if (settings?.['agent-presets']?.default !== process.env.DSH_CODEX_PRESET_ID) process.exit(1)
+})().catch((error) => {
+  console.error(error)
+  process.exit(1)
+})
+'@
+    $previousSettingsFile = $env:DSH_SETTINGS_FILE
+    $previousYamlModule = $env:DSH_YAML_MODULE
+    $previousPresetId = $env:DSH_CODEX_PRESET_ID
+    try {
+        $env:DSH_SETTINGS_FILE = $SettingsFile
+        $env:DSH_YAML_MODULE = Join-Path $ProfileDirectory 'node_modules/yaml'
+        $env:DSH_CODEX_PRESET_ID = $CodexPresetId
+        $verifyScript | & node
+        if ($LASTEXITCODE -ne 0) {
+            throw '验证失败，默认 Agent 预设不是 Codex 模式。'
+        }
+    }
+    finally {
+        $env:DSH_SETTINGS_FILE = $previousSettingsFile
+        $env:DSH_YAML_MODULE = $previousYamlModule
+        $env:DSH_CODEX_PRESET_ID = $previousPresetId
+    }
+    Write-InitLog '文件与默认 Agent 预设验证通过。'
 }
 
 # 删除本次下载产生的临时目录，不保留初始化中间文件。
@@ -291,6 +414,8 @@ function Start-Initialization {
         Receive-Source
         Install-AgentsFile
         Install-UserSkills
+        Install-AgentPresets
+        Set-DefaultAgentPreset
         Add-MinimumReleaseAgeExcludes
         Enable-BetterSidebarBuild
         Install-DesktopPlugins

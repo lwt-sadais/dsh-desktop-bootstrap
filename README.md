@@ -1,6 +1,6 @@
 # dsh-desktop-bootstrap
 
-用于记录和恢复当前 DSH Desktop 的全局 `AGENTS.md`、用户级 Skills 与 Desktop Profile 插件，方便后续由 AI 读取本仓库并初始化新的 DSH Desktop 环境。
+用于记录和恢复当前 DSH Desktop 的全局 `AGENTS.md`、用户级 Skills、Agent 预设与 Desktop Profile 插件，方便后续由 AI 读取本仓库并初始化新的 DSH Desktop 环境。
 
 > 本仓库不包含真实 API Key、Token、密码或服务 Base URL。Skills 中的私密配置已替换为占位符，使用前必须在本机重新配置。
 
@@ -11,6 +11,10 @@
 ├── AGENTS.md
 ├── install.ps1
 ├── install.sh
+├── agent-presets
+│   └── codex-mode
+│       ├── agent.cordis.yml
+│       └── preset.yml
 └── skills
     ├── commit
     │   ├── SKILL.md
@@ -31,7 +35,7 @@
 
 ## 一键初始化（推荐）
 
-脚本会下载本仓库的默认分支，备份并安装全局 `AGENTS.md`、合并用户级 Skills，并安装本文列出的 Desktop Profile 插件。安装过程不会创建或覆盖任何 Skill 的私密 `.env`。
+脚本会下载本仓库的默认分支，备份并安装全局 `AGENTS.md`、合并用户级 Skills、安装用户级 Codex 模式 Agent 预设、将其设为新会话的默认模式，并安装本文列出的 Desktop Profile 插件。安装过程不会创建或覆盖任何 Skill 的私密 `.env`。
 
 ### 第一步：打开 DSH Desktop 专用终端
 
@@ -66,6 +70,8 @@ irm "https://raw.githubusercontent.com/lwt-sadais/dsh-desktop-bootstrap/main/ins
 - 脚本首先检查当前终端能否执行 `dsh`；如果不能，会提示回到 DSH Desktop 应用内打开专用终端。
 - 如果 `~/.dsh/AGENTS.md` 已存在，会先按时间戳备份为 `AGENTS.md.backup.<时间戳>`。
 - Skills 采用合并安装，不会删除用户已有的其他 Skill，也不会创建或覆盖私密 `.env`。
+- Codex 模式安装到 `~/.dsh/.agent-presets/codex-mode`；若已存在同名文件或目录，会先整体备份为 `codex-mode.backup.<时间戳>`，再安装仓库版本。
+- 脚本会保留 `~/.dsh/settings.yaml` 中的其他设置，只写入 `agent-presets.default: codex-mode`；此设置影响此后新建的会话，不切换已运行会话的模式。
 - 首次请求生成图片时，`gpt-image-generator` 会运行配置检查，并通过交互提问仅收集缺失配置；已有配置不会要求重复输入。
 - 全部 Desktop Profile 插件会通过一条 `dsh plugin add` 命令批量安装，确保整个批次只占用一个 DSH Desktop 插件恢复事务；安装完成后重启应用时再统一验证。
 - 脚本会把 [`lwt-sadais/DSH-better-sidebar`](https://github.com/lwt-sadais/DSH-better-sidebar) 的提交 `0465d33db156bbeaf3fdb8e944bc9e7818bdb613` 作为同名顶层插件，与 Web UI 全家桶在同一条安装命令中安装，并仅为该精确 codeload URL 加入 `allowBuilds` 以执行 GitHub 包的 `prepare` 构建。Fork 自带聚合重复挂载保护，因此运行时仍只有一个侧边栏实例，同时修复跨会话切换时终端进程丢失的问题。
@@ -73,7 +79,7 @@ irm "https://raw.githubusercontent.com/lwt-sadais/dsh-desktop-bootstrap/main/ins
 - 如果 pnpm 拦截依赖构建脚本，脚本会先执行 `pnpm approve-builds !cpu-features`，明确拒绝 SSH 的可选原生加速依赖 `cpu-features`，避免没有 C++ 编译器的 Windows 电脑安装失败。
 - 排除 `cpu-features` 后，脚本会执行 `pnpm approve-builds --all` 批准其余全部待审批依赖构建脚本，然后仅重试整个插件批次一次。
 - 下载产生的临时文件会在结束时自动清理；任一关键步骤失败时脚本返回非零退出状态。
-- 初始化完成后请完全退出并重新启动 DSH Desktop，使全局指令、Skills 与插件重新加载。
+- 初始化完成后请完全退出并重新启动 DSH Desktop，使全局指令、Skills、Agent 预设与插件重新加载。
 
 > 远程一行命令会直接执行本仓库默认分支中的脚本。如需先审计内容，请查看 [`install.sh`](install.sh) 或 [`install.ps1`](install.ps1)，也可以按照下方步骤手动安装。
 
@@ -133,7 +139,25 @@ node ~/.dsh/skills/gpt-image-generator/scripts/generate-image.mjs --check-config
 {"configured":true,"missing":[]}
 ```
 
-## 四、安装 Desktop Profile 插件
+## 四、安装 Codex 模式 Agent 预设
+
+将仓库中的 Codex 模式复制到 DSH 用户级预设目录：
+
+```bash
+mkdir -p ~/.dsh/.agent-presets
+cp -R agent-presets/codex-mode ~/.dsh/.agent-presets/codex-mode
+```
+
+如果目标目录已存在，请先整体备份，避免覆盖本机自定义内容。随后在 `~/.dsh/settings.yaml` 中设置默认模式，同时保留其他设置：
+
+```yaml
+agent-presets:
+  default: codex-mode
+```
+
+安装并重启 DSH Desktop 后，新建会话会默认使用“Codex模式”，也仍可在模式选择器中切换；已运行会话不受影响。该预设是内置标准模式的快照，仅调整编码 Agent 的 persona；未来 DSH 升级若变更标准模式能力，需要人工同步本仓库中的预设。
+
+## 五、安装 Desktop Profile 插件
 
 以下列表根据当前 `~/.dsh/profiles/desktop/package.json` 的顶层插件依赖及已安装包元数据生成。统一安装到 `desktop` Profile：
 
@@ -159,7 +183,7 @@ dsh plugin add --profile desktop @linxin666/dsh-web-ui-all@0.2.7 github:lwt-sada
 
 安装或更新插件后，请完全退出并重新启动 DSH Desktop，使 Host 与 Web 客户端加载新插件。
 
-## 五、建议交给 AI 的初始化指令
+## 六、建议交给 AI 的初始化指令
 
 可以在新环境中向 AI 提供本仓库地址，并要求：
 
@@ -167,8 +191,9 @@ dsh plugin add --profile desktop @linxin666/dsh-web-ui-all@0.2.7 github:lwt-sada
 请读取 https://github.com/lwt-sadais/dsh-desktop-bootstrap，按照 README.md：
 1. 安装仓库中的 AGENTS.md；
 2. 安装仓库中的 Skills，但不要猜测或写入任何密钥和 Base URL；
-3. 使用 README.md 中列出的 dsh plugin add --profile desktop github:Owner/repo 命令安装插件；
-4. 操作前备份已有同名文件，完成后逐项验证。
+3. 安装仓库中的 codex-mode Agent 预设；
+4. 使用 README.md 中列出的 dsh plugin add --profile desktop github:Owner/repo 命令安装插件；
+5. 操作前备份已有同名文件，完成后逐项验证。
 ```
 
 ## 安全说明
