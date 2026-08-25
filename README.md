@@ -162,7 +162,7 @@ agent-presets:
 以下列表根据当前 `~/.dsh/profiles/desktop/package.json` 的顶层插件依赖及已安装包元数据生成。统一安装到 `desktop` Profile：
 
 ```bash
-dsh plugin add --profile desktop @linxin666/dsh-web-ui-all@0.2.7 github:lwt-sadais/DSH-better-sidebar#60c6e4cbb2d2656158c4d4acce60ec66341e1641 github:FSMargoo/dsh-at-file github:MuWinds/dsh-archived-sessions github:lwt-sadais/dsh-git-diff github:lwt-sadais/dsh-git-history github:lwt-sadais/dsh-local-file-reference github:lwt-sadais/dsh-reasoning-efforts
+dsh plugin add --profile desktop @linxin666/dsh-web-ui-all@0.2.7 github:lwt-sadais/DSH-better-sidebar#60c6e4cbb2d2656158c4d4acce60ec66341e1641 github:FSMargoo/dsh-at-file github:MuWinds/dsh-archived-sessions github:lwt-sadais/dsh-git-diff github:lwt-sadais/dsh-git-history#8bd025417209a6b6dc952def611e29cfe26cd61f github:lwt-sadais/dsh-local-file-reference github:lwt-sadais/dsh-reasoning-efforts
 ```
 
 > DSH Desktop 会为每次插件添加命令创建一个恢复事务。首次批量初始化时请保持为上述单条命令，不要拆成多条连续执行；命令成功后完全退出并重新启动 DSH Desktop，待恢复事务验证完成后再执行新的插件变更。
