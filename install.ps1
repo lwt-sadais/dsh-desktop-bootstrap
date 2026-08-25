@@ -368,6 +368,51 @@ function Install-DesktopPlugins {
     throw "Desktop Profile 插件安装失败：$($Plugins -join ', ')"
 }
 
+# 为 Web UI 0.2.7 的插件管理器补充 DSH Desktop Profile 识别，并对版本和源码指纹做严格约束。
+function Repair-PluginManagerDesktopProfile {
+    $packageDirectory = Join-Path $ProfileDirectory 'node_modules/@linxin666/dsh-client-ui-plugin-manager'
+    $packageJsonPath = Join-Path $packageDirectory 'package.json'
+    $entryPath = Join-Path $packageDirectory 'lib/index.js'
+    $backupPath = "$entryPath.backup-dsh-desktop-bootstrap"
+    if (-not (Test-Path -LiteralPath $packageJsonPath -PathType Leaf) -or -not (Test-Path -LiteralPath $entryPath -PathType Leaf)) {
+        throw '未找到 @linxin666/dsh-client-ui-plugin-manager，无法应用 DSH Desktop 兼容补丁。'
+    }
+
+    $package = Get-Content -LiteralPath $packageJsonPath -Raw | ConvertFrom-Json
+    if ($package.version -ne '0.2.7') {
+        throw "插件管理器版本为 $($package.version)，兼容补丁仅适用于 0.2.7；请检查上游版本后更新初始化脚本。"
+    }
+
+    $oldResolver = 'function resolveProfile(argv = process.argv, env = process.env) {'
+    $newResolver = 'function resolveProfile(argv = process.argv, env = process.env, desktopProfileName) {'
+    $oldFallback = 'else if (argv.includes("web")) name = "web";'
+    $newFallback = "else if (typeof desktopProfileName === `"string`" && desktopProfileName.trim() !== `"`") name = desktopProfileName.trim();`n`telse if (argv.includes(`"web`")) name = `"web`";"
+    $oldApply = 'facts = resolveProfile();'
+    $newApply = "const desktopProfiles = ctx.get(`"desktopProfiles`");`n`t`tfacts = resolveProfile(process.argv, process.env, desktopProfiles?.current?.name);"
+    $content = Get-Content -LiteralPath $entryPath -Raw
+    if ($content.Contains($newResolver) -and $content.Contains('desktopProfiles?.current?.name')) {
+        Write-InitLog '插件管理器 DSH Desktop 兼容补丁已存在，跳过重复修改。'
+        return
+    }
+    foreach ($requiredSource in @($oldResolver, $oldFallback, $oldApply)) {
+        if (-not $content.Contains($requiredSource)) {
+            throw "插件管理器源码指纹不匹配，拒绝修改 $entryPath。"
+        }
+    }
+
+    if (-not (Test-Path -LiteralPath $backupPath -PathType Leaf)) {
+        Copy-Item -LiteralPath $entryPath -Destination $backupPath
+    }
+    $content = $content.Replace($oldResolver, $newResolver).Replace($oldFallback, $newFallback).Replace($oldApply, $newApply)
+    $utf8WithoutBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($entryPath, $content, $utf8WithoutBom)
+    $verified = Get-Content -LiteralPath $entryPath -Raw
+    if (-not $verified.Contains($newResolver) -or -not $verified.Contains('desktopProfiles?.current?.name')) {
+        throw '插件管理器 DSH Desktop 兼容补丁回读验证失败。'
+    }
+    Write-InitLog "已修复插件管理器的 Desktop Profile 识别；原文件备份为 $backupPath。"
+}
+
 # 验证关键文件均已落盘，避免仅凭命令退出状态判断初始化成功。
 function Test-Installation {
     $requiredPaths = @(
@@ -437,6 +482,7 @@ function Start-Initialization {
         Add-MinimumReleaseAgeExcludes
         Enable-BetterSidebarBuild
         Install-DesktopPlugins
+        Repair-PluginManagerDesktopProfile
         Test-Installation
         Write-InitLog '初始化完成。首次使用 gpt-image-generator 时，Skill 会自动检测并询问缺失配置。请完全退出并重新启动 DSH Desktop。'
     }

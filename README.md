@@ -167,6 +167,19 @@ dsh plugin add --profile desktop @linxin666/dsh-web-ui-all@0.2.7 github:lwt-sada
 
 > DSH Desktop 会为每次插件添加命令创建一个恢复事务。首次批量初始化时请保持为上述单条命令，不要拆成多条连续执行；命令成功后完全退出并重新启动 DSH Desktop，待恢复事务验证完成后再执行新的插件变更。
 
+### Web UI 0.2.7 插件管理器兼容补丁
+
+`@linxin666/dsh-web-ui-all@0.2.7` 间接安装的 `@linxin666/dsh-client-ui-plugin-manager@0.2.7` 只从 CLI 参数或 `DSH_PROFILE` 识别 Profile。DSH Desktop 2.0.2 的 Host 进程不提供这两项，因此插件 Host 端会提前退出，设置页“插件管理”显示“操作失败：load”，对应的 `/api/plugin-manager/*` 路由均为 404。
+
+本仓库的 Windows 与 macOS/Linux 安装脚本会在插件安装后应用临时兼容补丁：优先读取 DSH Desktop 官方 `desktopProfiles.current.name`，普通 Web/CLI 环境仍保留原解析逻辑。补丁具备以下保护：
+
+- 仅允许修改精确版本 `0.2.7`，版本变化时停止并提示人工复核；
+- 修改前校验源码指纹，并将原文件备份为 `lib/index.js.backup-dsh-desktop-bootstrap`；
+- 重复执行时检测已修复状态并跳过，修改后重新读取文件验证；
+- 修复后必须完全退出并重新启动 DSH Desktop，Host 路由才会生效。
+
+这是对已发布第三方包的临时补丁，重新安装依赖可能覆盖它；再次运行初始化脚本即可恢复。上游发布原生支持 `desktopProfiles` 的版本后，应升级 `@linxin666/dsh-web-ui-all`，同步版本豁免列表，并删除脚本中的兼容补丁。
+
 对应关系：
 
 | 当前安装项 | 检测到的版本 | GitHub 仓库 | 说明 |

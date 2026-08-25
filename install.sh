@@ -277,6 +277,53 @@ install_plugins() {
   fail "Desktop Profile 插件安装失败，请根据上方错误处理后重试。"
 }
 
+# 为 Web UI 0.2.7 的插件管理器补充 DSH Desktop Profile 识别，并对版本和源码指纹做严格约束。
+repair_plugin_manager_desktop_profile() {
+  local package_dir="${PROFILE_DIR}/node_modules/@linxin666/dsh-client-ui-plugin-manager"
+  local package_json="${package_dir}/package.json"
+  local entry_path="${package_dir}/lib/index.js"
+  local backup_path="${entry_path}.backup-dsh-desktop-bootstrap"
+  [[ -f "${package_json}" && -f "${entry_path}" ]] \
+    || fail "未找到 @linxin666/dsh-client-ui-plugin-manager，无法应用 DSH Desktop 兼容补丁。"
+
+  PLUGIN_MANAGER_PACKAGE_JSON="${package_json}" PLUGIN_MANAGER_ENTRY="${entry_path}" \
+    PLUGIN_MANAGER_BACKUP="${backup_path}" node --input-type=module <<'NODE' \
+    || fail "插件管理器 DSH Desktop 兼容补丁失败。"
+import { constants } from 'node:fs'
+import { copyFile, readFile, writeFile } from 'node:fs/promises'
+
+const packageJson = process.env.PLUGIN_MANAGER_PACKAGE_JSON
+const entryPath = process.env.PLUGIN_MANAGER_ENTRY
+const backupPath = process.env.PLUGIN_MANAGER_BACKUP
+const pkg = JSON.parse(await readFile(packageJson, 'utf8'))
+if (pkg.version !== '0.2.7') {
+  throw new Error(`插件管理器版本为 ${pkg.version}，兼容补丁仅适用于 0.2.7；请检查上游版本后更新初始化脚本。`)
+}
+
+const oldResolver = 'function resolveProfile(argv = process.argv, env = process.env) {'
+const newResolver = 'function resolveProfile(argv = process.argv, env = process.env, desktopProfileName) {'
+const oldFallback = 'else if (argv.includes("web")) name = "web";'
+const newFallback = 'else if (typeof desktopProfileName === "string" && desktopProfileName.trim() !== "") name = desktopProfileName.trim();\n\telse if (argv.includes("web")) name = "web";'
+const oldApply = 'facts = resolveProfile();'
+const newApply = 'const desktopProfiles = ctx.get("desktopProfiles");\n\t\tfacts = resolveProfile(process.argv, process.env, desktopProfiles?.current?.name);'
+let content = await readFile(entryPath, 'utf8')
+if (content.includes(newResolver) && content.includes('desktopProfiles?.current?.name')) process.exit(0)
+for (const requiredSource of [oldResolver, oldFallback, oldApply]) {
+  if (!content.includes(requiredSource)) throw new Error(`插件管理器源码指纹不匹配，拒绝修改 ${entryPath}。`)
+}
+await copyFile(entryPath, backupPath, constants.COPYFILE_EXCL).catch((error) => {
+  if (error?.code !== 'EEXIST') throw error
+})
+content = content.replace(oldResolver, newResolver).replace(oldFallback, newFallback).replace(oldApply, newApply)
+await writeFile(entryPath, content, 'utf8')
+const verified = await readFile(entryPath, 'utf8')
+if (!verified.includes(newResolver) || !verified.includes('desktopProfiles?.current?.name')) {
+  throw new Error('插件管理器 DSH Desktop 兼容补丁回读验证失败。')
+}
+NODE
+  log "已确认插件管理器具备 Desktop Profile 识别；原文件备份路径为 ${backup_path}。"
+}
+
 # 验证关键文件均已落盘，避免仅凭命令退出状态判断初始化成功。
 verify_installation() {
   local required_path
@@ -318,6 +365,7 @@ main() {
   add_minimum_release_age_excludes
   enable_better_sidebar_build
   install_plugins
+  repair_plugin_manager_desktop_profile
   verify_installation
 
   log "初始化完成。首次使用 gpt-image-generator 时，Skill 会自动检测并询问缺失配置。请完全退出并重新启动 DSH Desktop。"
