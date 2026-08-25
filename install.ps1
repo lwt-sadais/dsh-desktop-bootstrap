@@ -41,6 +41,7 @@ $MinimumReleaseAgeExcludes = @(
 )
 $script:TempDirectory = $null
 $script:SourceDirectory = $null
+$script:YamlModule = $null
 
 # 输出带统一前缀的进度信息，便于用户定位当前步骤。
 function Write-InitLog {
@@ -57,6 +58,25 @@ function Test-Prerequisites {
     if (-not (Get-Command 'node' -ErrorAction SilentlyContinue)) {
         throw '当前终端中找不到 node，无法安全更新 DSH 用户设置。'
     }
+}
+
+# 兼容 Desktop 2.0.1 的 Profile 依赖布局和 2.0.2 起由桌面应用提供依赖的布局。
+function Resolve-YamlModule {
+    $profileYamlModule = Join-Path $ProfileDirectory 'node_modules/yaml'
+    if (Test-Path -LiteralPath (Join-Path $profileYamlModule 'package.json') -PathType Leaf) {
+        $script:YamlModule = $profileYamlModule
+        return
+    }
+
+    $resolvedPackage = (& node -p "require.resolve('yaml/package.json')" 2>$null | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or -not $resolvedPackage) {
+        throw "当前 DSH Desktop 运行环境无法解析 yaml 依赖，无法安全更新 $SettingsFile。"
+    }
+    $resolvedModule = Split-Path -Parent $resolvedPackage
+    if (-not (Test-Path -LiteralPath (Join-Path $resolvedModule 'package.json') -PathType Leaf)) {
+        throw "解析到的 yaml 依赖无效：$resolvedModule。"
+    }
+    $script:YamlModule = $resolvedModule
 }
 
 # 下载默认分支源码压缩包并解析仓库根目录。
@@ -126,10 +146,6 @@ function Install-AgentPresets {
 
 # 保留其余用户设置，仅将新会话的默认 Agent 预设设为 Codex 模式。
 function Set-DefaultAgentPreset {
-    $yamlModule = Join-Path $ProfileDirectory 'node_modules/yaml'
-    if (-not (Test-Path -LiteralPath $yamlModule -PathType Container)) {
-        throw "未找到 Desktop Profile 的 yaml 依赖，无法安全更新 $SettingsFile。"
-    }
     New-Item -ItemType Directory -Path $DshHome -Force | Out-Null
 
     $nodeScript = @'
@@ -169,7 +185,7 @@ const { pathToFileURL } = require('node:url')
     $previousPresetId = $env:DSH_CODEX_PRESET_ID
     try {
         $env:DSH_SETTINGS_FILE = $SettingsFile
-        $env:DSH_YAML_MODULE = $yamlModule
+        $env:DSH_YAML_MODULE = $script:YamlModule
         $env:DSH_CODEX_PRESET_ID = $CodexPresetId
         $nodeScript | & node
         if ($LASTEXITCODE -ne 0) {
@@ -386,7 +402,7 @@ const { pathToFileURL } = require('node:url')
     $previousPresetId = $env:DSH_CODEX_PRESET_ID
     try {
         $env:DSH_SETTINGS_FILE = $SettingsFile
-        $env:DSH_YAML_MODULE = Join-Path $ProfileDirectory 'node_modules/yaml'
+        $env:DSH_YAML_MODULE = $script:YamlModule
         $env:DSH_CODEX_PRESET_ID = $CodexPresetId
         $verifyScript | & node
         if ($LASTEXITCODE -ne 0) {
@@ -412,6 +428,7 @@ function Remove-TemporaryFiles {
 function Start-Initialization {
     try {
         Test-Prerequisites
+        Resolve-YamlModule
         Receive-Source
         Install-AgentsFile
         Install-UserSkills

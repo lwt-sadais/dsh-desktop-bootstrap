@@ -43,6 +43,7 @@ readonly MINIMUM_RELEASE_AGE_EXCLUDES=(
 
 TEMP_DIR=""
 SOURCE_DIR=""
+YAML_MODULE=""
 
 # 输出带统一前缀的进度信息，便于用户定位当前步骤。
 log() {
@@ -70,6 +71,25 @@ check_prerequisites() {
   done
 
   command -v dsh >/dev/null 2>&1 || fail "当前终端无法执行 dsh。请启动 DSH Desktop，从应用内打开 DSH Desktop 专用终端，再在该终端中重新执行本命令；普通系统终端无法直接使用 dsh。"
+}
+
+# 兼容 Desktop 2.0.1 的 Profile 依赖布局和 2.0.2 起由桌面应用提供依赖的布局。
+resolve_yaml_module() {
+  local profile_yaml_module="${PROFILE_DIR}/node_modules/yaml"
+  local resolved_package
+
+  if [[ -f "${profile_yaml_module}/package.json" ]]; then
+    YAML_MODULE="${profile_yaml_module}"
+    return
+  fi
+
+  resolved_package="$(node -p "require.resolve('yaml/package.json')" 2>/dev/null)" \
+    || fail "当前 DSH Desktop 运行环境无法解析 yaml 依赖，无法安全更新 ${SETTINGS_FILE}。"
+  [[ -n "${resolved_package}" ]] \
+    || fail "当前 DSH Desktop 运行环境无法解析 yaml 依赖，无法安全更新 ${SETTINGS_FILE}。"
+  YAML_MODULE="$(node -e 'process.stdout.write(require("node:path").dirname(process.argv[1]))' "${resolved_package}")" \
+    || fail "无法确定 yaml 依赖目录。"
+  [[ -f "${YAML_MODULE}/package.json" ]] || fail "解析到的 yaml 依赖无效：${YAML_MODULE}。"
 }
 
 # 下载默认分支源码压缩包并解析出唯一的仓库根目录。
@@ -129,11 +149,8 @@ install_agent_presets() {
 
 # 保留其余用户设置，仅将新会话的默认 Agent 预设设为 Codex 模式。
 set_default_agent_preset() {
-  local yaml_module="${PROFILE_DIR}/node_modules/yaml"
-
-  [[ -d "${yaml_module}" ]] || fail "未找到 Desktop Profile 的 yaml 依赖，无法安全更新 ${SETTINGS_FILE}。"
   mkdir -p "${DSH_HOME}" || fail "无法创建 ${DSH_HOME}。"
-  SETTINGS_FILE="${SETTINGS_FILE}" YAML_MODULE="${yaml_module}" CODEX_PRESET_ID="${CODEX_PRESET_ID}" node --input-type=module <<'NODE' || fail "设置默认 Agent 预设失败。"
+  SETTINGS_FILE="${SETTINGS_FILE}" YAML_MODULE="${YAML_MODULE}" CODEX_PRESET_ID="${CODEX_PRESET_ID}" node --input-type=module <<'NODE' || fail "设置默认 Agent 预设失败。"
 import { readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
@@ -275,7 +292,7 @@ verify_installation() {
     [[ -f "${required_path}" ]] || fail "验证失败，未找到 ${required_path}。"
   done
 
-  SETTINGS_FILE="${SETTINGS_FILE}" YAML_MODULE="${PROFILE_DIR}/node_modules/yaml" CODEX_PRESET_ID="${CODEX_PRESET_ID}" node --input-type=module <<'NODE' || fail "验证失败，默认 Agent 预设不是 Codex 模式。"
+  SETTINGS_FILE="${SETTINGS_FILE}" YAML_MODULE="${YAML_MODULE}" CODEX_PRESET_ID="${CODEX_PRESET_ID}" node --input-type=module <<'NODE' || fail "验证失败，默认 Agent 预设不是 Codex 模式。"
 import { readFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
@@ -292,6 +309,7 @@ NODE
 main() {
   trap cleanup EXIT
   check_prerequisites
+  resolve_yaml_module
   download_source
   install_agents
   install_skills
