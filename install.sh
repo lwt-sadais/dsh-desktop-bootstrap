@@ -17,6 +17,7 @@ readonly PLUGINS=(
   "github:FSMargoo/dsh-at-file"
   "github:MuWinds/dsh-archived-sessions"
   "github:lwt-sadais/dsh-git-diff"
+  "github:lwt-sadais/dsh-git-history"
   "github:lwt-sadais/dsh-local-file-reference"
   "github:lwt-sadais/dsh-reasoning-efforts"
 )
