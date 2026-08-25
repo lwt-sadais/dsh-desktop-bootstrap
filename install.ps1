@@ -16,7 +16,7 @@ $Plugins = @(
     'github:FSMargoo/dsh-at-file',
     'github:MuWinds/dsh-archived-sessions',
     'github:lwt-sadais/dsh-git-diff',
-    'github:lwt-sadais/dsh-git-history#8bd025417209a6b6dc952def611e29cfe26cd61f',
+    'github:lwt-sadais/dsh-git-history#6c37725fbb715a2c6e017c9b40e0db9639d898d0',
     'github:lwt-sadais/dsh-local-file-reference',
     'github:lwt-sadais/dsh-reasoning-efforts'
 )
