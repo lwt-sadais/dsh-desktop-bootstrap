@@ -16,7 +16,7 @@ $Plugins = @(
     [pscustomobject]@{ Name = 'dsh-at-file'; Source = 'github:FSMargoo/dsh-at-file' },
     [pscustomobject]@{ Name = '@muwinds/dsh-archived-sessions'; Source = 'github:MuWinds/dsh-archived-sessions' },
     [pscustomobject]@{ Name = 'dsh-git-diff'; Source = 'github:lwt-sadais/dsh-git-diff' },
-    [pscustomobject]@{ Name = 'dsh-git-history'; Source = 'github:lwt-sadais/dsh-git-history#6c37725fbb715a2c6e017c9b40e0db9639d898d0' },
+    [pscustomobject]@{ Name = 'dsh-git-history'; Source = 'github:lwt-sadais/dsh-git-history' },
     [pscustomobject]@{ Name = 'dsh-local-file-reference'; Source = 'github:lwt-sadais/dsh-local-file-reference' },
     [pscustomobject]@{ Name = 'dsh-plan-review-card'; Source = 'github:lwt-sadais/dsh-plan-review-card' },
     [pscustomobject]@{ Name = 'dsh-reasoning-efforts'; Source = 'github:lwt-sadais/dsh-reasoning-efforts' }

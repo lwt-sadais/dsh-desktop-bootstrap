@@ -162,7 +162,7 @@ agent-presets:
 以下列表根据当前 `~/.dsh/profiles/desktop/package.json` 的顶层插件依赖及已安装包元数据生成。统一安装到 `desktop` Profile：
 
 ```bash
-dsh plugin add --profile desktop @linxin666/dsh-web-ui-all@0.2.7 github:lwt-sadais/DSH-better-sidebar#60c6e4cbb2d2656158c4d4acce60ec66341e1641 github:FSMargoo/dsh-at-file github:MuWinds/dsh-archived-sessions github:lwt-sadais/dsh-git-diff github:lwt-sadais/dsh-git-history#6c37725fbb715a2c6e017c9b40e0db9639d898d0 github:lwt-sadais/dsh-local-file-reference github:lwt-sadais/dsh-plan-review-card github:lwt-sadais/dsh-reasoning-efforts
+dsh plugin add --profile desktop @linxin666/dsh-web-ui-all@0.2.7 github:lwt-sadais/DSH-better-sidebar#60c6e4cbb2d2656158c4d4acce60ec66341e1641 github:FSMargoo/dsh-at-file github:MuWinds/dsh-archived-sessions github:lwt-sadais/dsh-git-diff github:lwt-sadais/dsh-git-history github:lwt-sadais/dsh-local-file-reference github:lwt-sadais/dsh-plan-review-card github:lwt-sadais/dsh-reasoning-efforts
 ```
 
 > DSH Desktop 会为每次插件添加命令创建一个恢复事务。首次批量初始化时请保持为上述单条命令，不要拆成多条连续执行；命令成功后完全退出并重新启动 DSH Desktop，待恢复事务验证完成后再执行新的插件变更。
@@ -189,7 +189,7 @@ dsh plugin add --profile desktop @linxin666/dsh-web-ui-all@0.2.7 github:lwt-sada
 | `dsh-at-file` | `0.6.3` | [`FSMargoo/dsh-at-file`](https://github.com/FSMargoo/dsh-at-file) | `@path` 工作区文件引用 |
 | `@muwinds/dsh-archived-sessions` | `0.2.0` | [`MuWinds/dsh-archived-sessions`](https://github.com/MuWinds/dsh-archived-sessions) | 归档会话管理 |
 | `dsh-git-diff` | `0.1.0` | [`lwt-sadais/dsh-git-diff`](https://github.com/lwt-sadais/dsh-git-diff) | Git Diff 审查 |
-| `dsh-git-history` | `0.1.0 + 6c37725` | [`lwt-sadais/dsh-git-history`](https://github.com/lwt-sadais/dsh-git-history) | 输入框工具栏弹窗显示工作区及递归子模块的分支、ahead/behind 和提交历史，并支持远端同步 |
+| `dsh-git-history` | `0.1.0` | [`lwt-sadais/dsh-git-history`](https://github.com/lwt-sadais/dsh-git-history) | 输入框工具栏弹窗显示工作区及递归子模块的分支、ahead/behind 和提交历史，支持远端同步，并可按文件查看提交改动 |
 | `dsh-local-file-reference` | `0.1.0` | [`lwt-sadais/dsh-local-file-reference`](https://github.com/lwt-sadais/dsh-local-file-reference) | 本地文件路径引用 |
 | `dsh-plan-review-card` | `0.2.0` | [`lwt-sadais/dsh-plan-review-card`](https://github.com/lwt-sadais/dsh-plan-review-card) | 主 Agent 通过 `present_result_card` 将实施方案、评估和分析报告展示为持久化审查卡片，子 Agent 不触发人工审查；完整内容使用非阻塞、可拖动调宽并记忆宽度的右侧阅读栏，支持继续操作会话和输入框，以及 160 字摘要审查、批准、拒绝、取消、批注调整、复制和 Markdown 导出；兼容 DSH rc.1/rc.2 |
 | `dsh-reasoning-efforts` | `0.1.0` | [`lwt-sadais/dsh-reasoning-efforts`](https://github.com/lwt-sadais/dsh-reasoning-efforts) | 按模型配置自定义 Provider 的推理等级与接口映射 |
