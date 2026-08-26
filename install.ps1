@@ -11,15 +11,15 @@ $CodexPresetId = 'codex-mode'
 $AgentPresetsDirectory = Join-Path $DshHome '.agent-presets'
 $SettingsFile = Join-Path $DshHome 'settings.yaml'
 $Plugins = @(
-    '@linxin666/dsh-web-ui-all@0.2.7',
-    $BetterSidebarFork,
-    'github:FSMargoo/dsh-at-file',
-    'github:MuWinds/dsh-archived-sessions',
-    'github:lwt-sadais/dsh-git-diff',
-    'github:lwt-sadais/dsh-git-history#6c37725fbb715a2c6e017c9b40e0db9639d898d0',
-    'github:lwt-sadais/dsh-local-file-reference',
-    'github:lwt-sadais/dsh-plan-review-card',
-    'github:lwt-sadais/dsh-reasoning-efforts'
+    [pscustomobject]@{ Name = '@linxin666/dsh-web-ui-all'; Source = '@linxin666/dsh-web-ui-all@0.2.7' },
+    [pscustomobject]@{ Name = 'dsh-better-sidebar'; Source = $BetterSidebarFork },
+    [pscustomobject]@{ Name = 'dsh-at-file'; Source = 'github:FSMargoo/dsh-at-file' },
+    [pscustomobject]@{ Name = '@muwinds/dsh-archived-sessions'; Source = 'github:MuWinds/dsh-archived-sessions' },
+    [pscustomobject]@{ Name = 'dsh-git-diff'; Source = 'github:lwt-sadais/dsh-git-diff' },
+    [pscustomobject]@{ Name = 'dsh-git-history'; Source = 'github:lwt-sadais/dsh-git-history#6c37725fbb715a2c6e017c9b40e0db9639d898d0' },
+    [pscustomobject]@{ Name = 'dsh-local-file-reference'; Source = 'github:lwt-sadais/dsh-local-file-reference' },
+    [pscustomobject]@{ Name = 'dsh-plan-review-card'; Source = 'github:lwt-sadais/dsh-plan-review-card' },
+    [pscustomobject]@{ Name = 'dsh-reasoning-efforts'; Source = 'github:lwt-sadais/dsh-reasoning-efforts' }
 )
 $MinimumReleaseAgeExcludes = @(
     '@linxin666/dsh-chat-recovery@0.2.7',
@@ -343,14 +343,19 @@ function Enable-BetterSidebarBuild {
     Write-InitLog '已批准固定 better-sidebar Fork 提交执行构建脚本。'
 }
 
-# 在单个恢复事务中安装全部插件；忽略 cpu-features 后批准其余全部并重试一次。
-function Install-DesktopPlugins {
-    $arguments = @('plugin', 'add', '--profile', 'desktop') + $Plugins
+# 执行一次插件安装或更新；依赖构建被拦截时完成审批并仅重试原命令一次。
+function Invoke-PluginOperation {
+    param(
+        [Parameter(Mandatory)][ValidateSet('add', 'update')][string]$Action,
+        [Parameter(Mandatory)][string]$Label,
+        [Parameter(Mandatory)][string[]]$Targets
+    )
 
-    Write-InitLog "正在安装 Desktop Profile 插件：$($Plugins -join ', ')……"
+    $arguments = @('plugin', $Action, '--profile', 'desktop') + $Targets
+    Write-InitLog "正在$Label Desktop Profile 插件：$($Targets -join ', ')……"
     $result = Invoke-CapturedCommand -FilePath 'dsh' -ArgumentList $arguments
     if ($result.ExitCode -eq 0) {
-        Write-InitLog '已完成 Desktop Profile 插件安装。'
+        Write-InitLog "已完成 Desktop Profile 插件$Label。"
         return
     }
 
@@ -358,15 +363,43 @@ function Install-DesktopPlugins {
         if (-not (Approve-PendingBuildsExceptCpuFeatures -Output $result.Output)) {
             throw 'Desktop Profile 插件依赖构建审批失败。请查看上方 pnpm 输出。'
         }
-        Write-InitLog '正在重试 Desktop Profile 插件批量安装……'
+        Write-InitLog "正在重试 Desktop Profile 插件$Label……"
         $retryResult = Invoke-CapturedCommand -FilePath 'dsh' -ArgumentList $arguments
         if ($retryResult.ExitCode -eq 0) {
-            Write-InitLog '已完成 Desktop Profile 插件安装。'
+            Write-InitLog "已完成 Desktop Profile 插件$Label。"
             return
         }
     }
 
-    throw "Desktop Profile 插件安装失败：$($Plugins -join ', ')"
+    throw "Desktop Profile 插件$Label失败：$($Targets -join ', ')"
+}
+
+# 缺失插件按来源批量安装，已声明插件按真实包名批量更新，兼容 Desktop 2.0.1 与 2.0.2。
+function Install-DesktopPlugins {
+    $manifestPath = Join-Path $ProfileDirectory 'package.json'
+    $dependencyNames = @()
+    if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
+        $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+        $dependencies = $manifest.PSObject.Properties['dependencies']
+        if ($null -ne $dependencies) {
+            $dependencyNames = @($dependencies.Value.PSObject.Properties.Name)
+        }
+    }
+
+    $installSources = @($Plugins | Where-Object { $_.Name -notin $dependencyNames } | ForEach-Object { $_.Source })
+    $updateNames = @($Plugins | Where-Object { $_.Name -in $dependencyNames } | ForEach-Object { $_.Name })
+    if ($installSources.Count -gt 0) {
+        Invoke-PluginOperation -Action 'add' -Label '安装' -Targets $installSources
+    }
+    else {
+        Write-InitLog '所有目标插件均已安装，跳过 plugin add。'
+    }
+    if ($updateNames.Count -gt 0) {
+        Invoke-PluginOperation -Action 'update' -Label '更新' -Targets $updateNames
+    }
+    else {
+        Write-InitLog '当前没有已安装插件需要更新。'
+    }
 }
 
 # 为 Web UI 0.2.7 的插件管理器补充 DSH Desktop Profile 识别，并对版本和源码指纹做严格约束。
@@ -460,7 +493,49 @@ const { pathToFileURL } = require('node:url')
         $env:DSH_YAML_MODULE = $previousYamlModule
         $env:DSH_CODEX_PRESET_ID = $previousPresetId
     }
-    Write-InitLog '文件与默认 Agent 预设验证通过。'
+    $profileManifestPath = Join-Path $ProfileDirectory 'package.json'
+    $profileManifest = Get-Content -LiteralPath $profileManifestPath -Raw | ConvertFrom-Json
+    $profileDependencies = $profileManifest.PSObject.Properties['dependencies']
+    $profileDsh = $profileManifest.PSObject.Properties['dsh']
+    $profileSettings = if ($null -ne $profileDsh) { $profileDsh.Value.PSObject.Properties['profile'] } else { $null }
+    if ($null -eq $profileDependencies -or $null -eq $profileSettings) {
+        throw '验证失败，Desktop Profile manifest 缺少 dependencies 或 dsh.profile。'
+    }
+    $dependencyNames = @($profileDependencies.Value.PSObject.Properties.Name)
+    $bundles = $profileSettings.Value.PSObject.Properties['bundles']
+    $bundleNames = if ($null -ne $bundles) { @($bundles.Value) } else { @() }
+    foreach ($plugin in $Plugins) {
+        if ($plugin.Name -notin $dependencyNames) {
+            throw "验证失败，Profile dependencies 缺少 $($plugin.Name)。"
+        }
+        $packageDirectory = Join-Path $ProfileDirectory ("node_modules/" + $plugin.Name)
+        $packageManifestPath = Join-Path $packageDirectory 'package.json'
+        if (-not (Test-Path -LiteralPath $packageManifestPath -PathType Leaf)) {
+            throw "验证失败，未找到插件产物 $packageManifestPath。"
+        }
+        $packageManifest = Get-Content -LiteralPath $packageManifestPath -Raw | ConvertFrom-Json
+        $packageDsh = $packageManifest.PSObject.Properties['dsh']
+        $bundle = if ($null -ne $packageDsh) { $packageDsh.Value.PSObject.Properties['bundle'] } else { $null }
+        if ($null -ne $bundle -and $null -ne $bundle.Value.PSObject.Properties['patch'] -and $plugin.Name -notin $bundleNames) {
+            throw "验证失败，Profile Bundle 列表缺少 $($plugin.Name)。"
+        }
+        if ($plugin.Name -eq 'dsh-plan-review-card') {
+            $packageExports = $packageManifest.PSObject.Properties['exports']
+            $client = if ($null -ne $packageDsh) { $packageDsh.Value.PSObject.Properties['client'] } else { $null }
+            $clientExportProperty = if ($null -ne $packageExports) { $packageExports.Value.PSObject.Properties['./client'] } else { $null }
+            if ($null -eq $client -or $null -eq $clientExportProperty) {
+                throw '验证失败，dsh-plan-review-card 缺少 Client 声明或导出。'
+            }
+            $hostEntry = Join-Path $packageDirectory $packageManifest.main
+            $clientExport = $clientExportProperty.Value
+            $clientEntryValue = if ($clientExport -is [string]) { $clientExport } else { $clientExport.default }
+            $clientEntry = Join-Path $packageDirectory $clientEntryValue
+            if (-not (Test-Path -LiteralPath $hostEntry -PathType Leaf) -or -not (Test-Path -LiteralPath $clientEntry -PathType Leaf)) {
+                throw '验证失败，dsh-plan-review-card 的 Host 或 Client 构建入口不存在。'
+            }
+        }
+    }
+    Write-InitLog '文件、默认 Agent 预设与 Desktop Profile 插件验证通过。'
 }
 
 # 删除本次下载产生的临时目录，不保留初始化中间文件。

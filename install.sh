@@ -11,7 +11,18 @@ readonly BETTER_SIDEBAR_BUILD_KEY="dsh-better-sidebar@https://codeload.github.co
 readonly CODEX_PRESET_ID="codex-mode"
 readonly AGENT_PRESETS_DIR="${DSH_HOME}/.agent-presets"
 readonly SETTINGS_FILE="${DSH_HOME}/settings.yaml"
-readonly PLUGINS=(
+readonly PLUGIN_NAMES=(
+  "@linxin666/dsh-web-ui-all"
+  "dsh-better-sidebar"
+  "dsh-at-file"
+  "@muwinds/dsh-archived-sessions"
+  "dsh-git-diff"
+  "dsh-git-history"
+  "dsh-local-file-reference"
+  "dsh-plan-review-card"
+  "dsh-reasoning-efforts"
+)
+readonly PLUGIN_SOURCES=(
   "@linxin666/dsh-web-ui-all@0.2.7"
   "${BETTER_SIDEBAR_FORK}"
   "github:FSMargoo/dsh-at-file"
@@ -253,29 +264,71 @@ enable_better_sidebar_build() {
   log "已批准固定 better-sidebar Fork 提交执行构建脚本。"
 }
 
-# 在单个恢复事务中安装全部插件；忽略 cpu-features 后批准其余全部并重试一次。
-install_plugins() {
-  local output_file="${TEMP_DIR}/plugin-output.log"
+# 执行一次插件安装或更新；依赖构建被拦截时完成审批并仅重试原命令一次。
+run_plugin_operation() {
+  local action="$1"
+  local label="$2"
+  shift 2
+  local output_file="${TEMP_DIR}/plugin-${action}-output.log"
   local status
 
-  log "正在批量安装 Desktop Profile 插件：${PLUGINS[*]}……"
+  log "正在${label} Desktop Profile 插件：$*……"
   : >"${output_file}"
-  dsh plugin add --profile desktop "${PLUGINS[@]}" > >(tee "${output_file}") 2>&1
+  dsh plugin "${action}" --profile desktop "$@" > >(tee "${output_file}") 2>&1
   status=$?
   if [[ ${status} -eq 0 ]]; then
-    log "已完成 Desktop Profile 插件安装。"
+    log "已完成 Desktop Profile 插件${label}。"
     return 0
   fi
 
   if grep -qiE 'pnpm[[:space:]]+approve-builds|ERR_PNPM_IGNORED_BUILDS' "${output_file}"; then
     approve_pending_builds_except_cpu_features "${output_file}" || fail "Desktop Profile 插件依赖构建审批失败，请查看上方 pnpm 输出。"
-    log "正在重试 Desktop Profile 插件批量安装……"
-    dsh plugin add --profile desktop "${PLUGINS[@]}" || fail "Desktop Profile 插件批量安装重试失败。"
-    log "已完成 Desktop Profile 插件安装。"
+    log "正在重试 Desktop Profile 插件${label}……"
+    dsh plugin "${action}" --profile desktop "$@" || fail "Desktop Profile 插件${label}重试失败。"
+    log "已完成 Desktop Profile 插件${label}。"
     return 0
   fi
 
-  fail "Desktop Profile 插件安装失败，请根据上方错误处理后重试。"
+  fail "Desktop Profile 插件${label}失败，请根据上方错误处理后重试。"
+}
+
+# 缺失插件按来源批量安装，已声明插件按真实包名批量更新，兼容 Desktop 2.0.1 与 2.0.2。
+install_plugins() {
+  local manifest="${PROFILE_DIR}/package.json"
+  local installed_flags index
+  local install_sources=()
+  local update_names=()
+
+  [[ ${#PLUGIN_NAMES[@]} -eq ${#PLUGIN_SOURCES[@]} ]] || fail "插件包名与来源配置数量不一致。"
+  installed_flags="$(node -e '
+    const { readFileSync } = require("node:fs");
+    let dependencies = {};
+    try { dependencies = JSON.parse(readFileSync(process.argv[1], "utf8")).dependencies ?? {}; }
+    catch (error) { if (error?.code !== "ENOENT") throw error; }
+    for (const name of process.argv.slice(2)) console.log(Object.hasOwn(dependencies, name) ? "1" : "0");
+  ' "${manifest}" "${PLUGIN_NAMES[@]}")" || fail "读取 Desktop Profile 插件声明失败。"
+
+  index=0
+  while IFS= read -r installed; do
+    if [[ "${installed}" == "1" ]]; then
+      update_names+=("${PLUGIN_NAMES[${index}]}")
+    else
+      install_sources+=("${PLUGIN_SOURCES[${index}]}")
+    fi
+    index=$((index + 1))
+  done <<<"${installed_flags}"
+  [[ ${index} -eq ${#PLUGIN_NAMES[@]} ]] || fail "Desktop Profile 插件分类结果不完整。"
+
+  if [[ ${#install_sources[@]} -gt 0 ]]; then
+    run_plugin_operation add "安装" "${install_sources[@]}"
+  else
+    log "所有目标插件均已安装，跳过 plugin add。"
+  fi
+  if [[ ${#update_names[@]} -gt 0 ]]; then
+    run_plugin_operation update "更新" "${update_names[@]}"
+  else
+    log "当前没有已安装插件需要更新。"
+  fi
 }
 
 # 为 Web UI 0.2.7 的插件管理器补充 DSH Desktop Profile 识别，并对版本和源码指纹做严格约束。
@@ -350,7 +403,36 @@ const { parse } = await import(pathToFileURL(require.resolve(process.env.DSH_YAM
 const settings = parse(await readFile(process.env.DSH_SETTINGS_FILE, 'utf8'))
 if (settings?.['agent-presets']?.default !== process.env.DSH_CODEX_PRESET_ID) process.exit(1)
 NODE
-  log "文件与默认 Agent 预设验证通过。"
+
+  DSH_PROFILE_DIR="${PROFILE_DIR}" node --input-type=module - "${PLUGIN_NAMES[@]}" <<'NODE' || fail "验证失败，Desktop Profile 插件声明或安装产物不完整。"
+import { access, readFile } from 'node:fs/promises'
+import { join } from 'node:path'
+
+const profileDir = process.env.DSH_PROFILE_DIR
+const names = process.argv.slice(2)
+const profile = JSON.parse(await readFile(join(profileDir, 'package.json'), 'utf8'))
+const dependencies = profile.dependencies ?? {}
+const bundles = new Set(profile.dsh?.profile?.bundles ?? [])
+for (const name of names) {
+  if (!Object.hasOwn(dependencies, name)) throw new Error(`Profile dependencies 缺少 ${name}`)
+  const packageDir = join(profileDir, 'node_modules', ...name.split('/'))
+  const manifest = JSON.parse(await readFile(join(packageDir, 'package.json'), 'utf8'))
+  if (manifest.dsh?.bundle?.patch !== undefined && !bundles.has(name)) {
+    throw new Error(`Profile Bundle 列表缺少 ${name}`)
+  }
+  if (name === 'dsh-plan-review-card') {
+    if (manifest.dsh?.client === undefined || manifest.exports?.['./client'] === undefined) {
+      throw new Error('dsh-plan-review-card 缺少 Client 声明或导出')
+    }
+    await access(join(packageDir, manifest.main))
+    const clientExport = typeof manifest.exports['./client'] === 'string'
+      ? manifest.exports['./client']
+      : manifest.exports['./client'].default
+    await access(join(packageDir, clientExport))
+  }
+}
+NODE
+  log "文件、默认 Agent 预设与 Desktop Profile 插件验证通过。"
 }
 
 # 按固定顺序执行初始化流程，确保失败时立即停止后续关键步骤。
