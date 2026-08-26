@@ -151,14 +151,14 @@ install_agent_presets() {
 # 保留其余用户设置，仅将新会话的默认 Agent 预设设为 Codex 模式。
 set_default_agent_preset() {
   mkdir -p "${DSH_HOME}" || fail "无法创建 ${DSH_HOME}。"
-  SETTINGS_FILE="${SETTINGS_FILE}" YAML_MODULE="${YAML_MODULE}" CODEX_PRESET_ID="${CODEX_PRESET_ID}" node --input-type=module <<'NODE' || fail "设置默认 Agent 预设失败。"
+  DSH_SETTINGS_FILE="${SETTINGS_FILE}" DSH_YAML_MODULE="${YAML_MODULE}" DSH_CODEX_PRESET_ID="${CODEX_PRESET_ID}" node --input-type=module <<'NODE' || fail "设置默认 Agent 预设失败。"
 import { readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 
-const settingsFile = process.env.SETTINGS_FILE
-const yamlModule = process.env.YAML_MODULE
-const presetId = process.env.CODEX_PRESET_ID
+const settingsFile = process.env.DSH_SETTINGS_FILE
+const yamlModule = process.env.DSH_YAML_MODULE
+const presetId = process.env.DSH_CODEX_PRESET_ID
 const require = createRequire(import.meta.url)
 const { parseDocument } = await import(pathToFileURL(require.resolve(yamlModule)).href)
 let source = ''
@@ -340,15 +340,15 @@ verify_installation() {
     [[ -f "${required_path}" ]] || fail "验证失败，未找到 ${required_path}。"
   done
 
-  SETTINGS_FILE="${SETTINGS_FILE}" YAML_MODULE="${YAML_MODULE}" CODEX_PRESET_ID="${CODEX_PRESET_ID}" node --input-type=module <<'NODE' || fail "验证失败，默认 Agent 预设不是 Codex 模式。"
+  DSH_SETTINGS_FILE="${SETTINGS_FILE}" DSH_YAML_MODULE="${YAML_MODULE}" DSH_CODEX_PRESET_ID="${CODEX_PRESET_ID}" node --input-type=module <<'NODE' || fail "验证失败，默认 Agent 预设不是 Codex 模式。"
 import { readFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 
 const require = createRequire(import.meta.url)
-const { parse } = await import(pathToFileURL(require.resolve(process.env.YAML_MODULE)).href)
-const settings = parse(await readFile(process.env.SETTINGS_FILE, 'utf8'))
-if (settings?.['agent-presets']?.default !== process.env.CODEX_PRESET_ID) process.exit(1)
+const { parse } = await import(pathToFileURL(require.resolve(process.env.DSH_YAML_MODULE)).href)
+const settings = parse(await readFile(process.env.DSH_SETTINGS_FILE, 'utf8'))
+if (settings?.['agent-presets']?.default !== process.env.DSH_CODEX_PRESET_ID) process.exit(1)
 NODE
   log "文件与默认 Agent 预设验证通过。"
 }
