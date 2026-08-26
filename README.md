@@ -73,7 +73,7 @@ irm "https://raw.githubusercontent.com/lwt-sadais/dsh-desktop-bootstrap/main/ins
 - Codex 模式安装到 `~/.dsh/.agent-presets/codex-mode`；若已存在同名文件或目录，会先整体备份为 `codex-mode.backup.<时间戳>`，再安装仓库版本。
 - 脚本会保留 `~/.dsh/settings.yaml` 中的其他设置，只写入 `agent-presets.default: codex-mode`；此设置影响此后新建的会话，不切换已运行会话的模式。
 - 首次请求生成图片时，`gpt-image-generator` 会运行配置检查，并通过交互提问仅收集缺失配置；已有配置不会要求重复输入。
-- Desktop Profile 中缺失的插件会按完整来源通过一条 `dsh plugin add` 命令批量安装；重复运行脚本时，已声明插件会按真实包名通过一条 `dsh plugin update` 命令批量更新。该逻辑同时兼容 DSH Desktop 2.0.1 与 2.0.2，不会因已安装而重复生成同名 Bundle；其中 `dsh-plan-review-card` 会让模型通过 `present_result_card` 输出可审查的结构化卡片，支持摘要审查、批准、拒绝、取消、批注调整、复制和 Markdown 导出。
+- Desktop Profile 中缺失的插件会按完整来源通过一条 `dsh plugin add` 命令批量安装；重复运行脚本时，已声明插件会按真实包名通过一条 `dsh plugin update` 命令批量更新。该逻辑同时兼容 DSH Desktop 2.0.1 与 2.0.2，不会因已安装而重复生成同名 Bundle；其中 `dsh-plan-review-card` 会让主 Agent 通过 `present_result_card` 输出可审查的结构化卡片，子 Agent 不触发人工审查；完整内容在非阻塞右侧阅读栏展示，可继续操作会话和输入框，并支持拖动调宽、宽度记忆、摘要审查、批准、拒绝、取消、批注调整、复制和 Markdown 导出。
 - 脚本会把 [`lwt-sadais/DSH-better-sidebar`](https://github.com/lwt-sadais/DSH-better-sidebar) 的提交 `60c6e4cbb2d2656158c4d4acce60ec66341e1641` 作为同名顶层插件，与 Web UI 全家桶在同一条安装命令中安装，并仅为该精确 codeload URL 加入 `allowBuilds` 以执行 GitHub 包的 `prepare` 构建。Fork 自带聚合重复挂载保护，因此运行时仍只有一个侧边栏实例，同时修复跨会话切换时终端进程丢失及空/C locale 下中文输入乱码的问题。
 - DSH 的 pnpm 默认拒绝发布不足 24 小时的依赖。脚本会保留用户已有策略，仅将已核对的 17 个 `@linxin666/*@0.2.7` 精确版本合并到 Desktop Profile 的 `minimumReleaseAgeExclude`；不会使用通配符、关闭 `minimumReleaseAge`，也不会通过 `--trust-lockfile` 跳过锁文件校验。
 - 如果 pnpm 拦截依赖构建脚本，脚本会先执行 `pnpm approve-builds !cpu-features`，明确拒绝 SSH 的可选原生加速依赖 `cpu-features`，避免没有 C++ 编译器的 Windows 电脑安装失败。
@@ -191,7 +191,7 @@ dsh plugin add --profile desktop @linxin666/dsh-web-ui-all@0.2.7 github:lwt-sada
 | `dsh-git-diff` | `0.1.0` | [`lwt-sadais/dsh-git-diff`](https://github.com/lwt-sadais/dsh-git-diff) | Git Diff 审查 |
 | `dsh-git-history` | `0.1.0 + 6c37725` | [`lwt-sadais/dsh-git-history`](https://github.com/lwt-sadais/dsh-git-history) | 输入框工具栏弹窗显示工作区及递归子模块的分支、ahead/behind 和提交历史，并支持远端同步 |
 | `dsh-local-file-reference` | `0.1.0` | [`lwt-sadais/dsh-local-file-reference`](https://github.com/lwt-sadais/dsh-local-file-reference) | 本地文件路径引用 |
-| `dsh-plan-review-card` | `0.2.0` | [`lwt-sadais/dsh-plan-review-card`](https://github.com/lwt-sadais/dsh-plan-review-card) | 将实施方案、评估和分析报告通过 `present_result_card` 展示为持久化审查卡片，支持 160 字摘要审查、批准、拒绝、取消、批注调整、复制和 Markdown 导出；兼容 DSH rc.1/rc.2 |
+| `dsh-plan-review-card` | `0.2.0` | [`lwt-sadais/dsh-plan-review-card`](https://github.com/lwt-sadais/dsh-plan-review-card) | 主 Agent 通过 `present_result_card` 将实施方案、评估和分析报告展示为持久化审查卡片，子 Agent 不触发人工审查；完整内容使用非阻塞、可拖动调宽并记忆宽度的右侧阅读栏，支持继续操作会话和输入框，以及 160 字摘要审查、批准、拒绝、取消、批注调整、复制和 Markdown 导出；兼容 DSH rc.1/rc.2 |
 | `dsh-reasoning-efforts` | `0.1.0` | [`lwt-sadais/dsh-reasoning-efforts`](https://github.com/lwt-sadais/dsh-reasoning-efforts) | 按模型配置自定义 Provider 的推理等级与接口映射 |
 
 > `@deepseek-ai/dsh-base` 和 `@deepseek-ai/dsh-web-app` 是 DSH Desktop Profile 的内置基础 Bundle，不作为第三方插件重复安装。
