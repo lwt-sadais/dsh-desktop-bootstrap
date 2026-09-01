@@ -224,6 +224,31 @@ function Read-Utf8Json {
     return Get-Content -LiteralPath $LiteralPath -Raw -Encoding UTF8 | ConvertFrom-Json
 }
 
+# 以无 BOM UTF-8 原子写回 JSON，避免 Windows PowerShell 5.1 的 utf8 编码破坏 DSH Profile。
+function Write-Utf8Json {
+    param(
+        [Parameter(Mandatory)][string]$LiteralPath,
+        [Parameter(Mandatory)]$InputObject
+    )
+
+    $operationId = "$PID-$([guid]::NewGuid().ToString('N'))"
+    $temporaryPath = "${LiteralPath}.tmp-$operationId"
+    $backupPath = "${LiteralPath}.backup-$operationId"
+    $content = (ConvertTo-Json -InputObject $InputObject -Depth 20) + [Environment]::NewLine
+    $utf8WithoutBom = [System.Text.UTF8Encoding]::new($false)
+    try {
+        [System.IO.File]::WriteAllText($temporaryPath, $content, $utf8WithoutBom)
+        [System.IO.File]::Replace($temporaryPath, $LiteralPath, $backupPath)
+    }
+    finally {
+        foreach ($cleanupPath in @($temporaryPath, $backupPath)) {
+            if (Test-Path -LiteralPath $cleanupPath) {
+                Remove-Item -LiteralPath $cleanupPath -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+}
+
 # 显式枚举对象属性名，兼容 Windows PowerShell 严格模式下不支持集合成员枚举的情况。
 function Get-ObjectPropertyNames {
     param([Parameter(Mandatory)]$InputObject)
@@ -410,7 +435,7 @@ function Set-SettingsCompatBundleOrder {
         $bundles.RemoveAt($compatIndex)
         $bundles.Insert($webAllIndex, $CompatPluginName)
         $profile.dsh.profile.bundles = @($bundles)
-        $profile | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $manifestPath -Encoding utf8
+        Write-Utf8Json -LiteralPath $manifestPath -InputObject $profile
     }
     Write-InitLog '已确认设置兼容插件先于 Web UI 聚合包加载。'
 }
@@ -465,6 +490,10 @@ const { pathToFileURL } = require('node:url')
         $env:DSH_CODEX_PRESET_ID = $previousPresetId
     }
     $profileManifestPath = Join-Path $ProfileDirectory 'package.json'
+    $profilePrefix = @(Get-Content -LiteralPath $profileManifestPath -Encoding Byte -TotalCount 3)
+    if ($profilePrefix.Count -eq 3 -and $profilePrefix[0] -eq 0xEF -and $profilePrefix[1] -eq 0xBB -and $profilePrefix[2] -eq 0xBF) {
+        throw '验证失败，Desktop Profile manifest 包含 UTF-8 BOM。'
+    }
     $profileManifest = Read-Utf8Json -LiteralPath $profileManifestPath
     $profileDependencies = $profileManifest.PSObject.Properties['dependencies']
     $profileDsh = $profileManifest.PSObject.Properties['dsh']
