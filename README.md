@@ -165,7 +165,7 @@ agent-presets:
 mkdir -p "$HOME/.dsh/plugins/dsh-settings-alpha1-compat"
 cp -R plugins/dsh-settings-alpha1-compat/. "$HOME/.dsh/plugins/dsh-settings-alpha1-compat/"
 dsh plugin remove --profile desktop @linxin666/dsh-web-ui-all
-dsh plugin add --profile desktop link:$HOME/.dsh/plugins/dsh-settings-alpha1-compat @linxin666/dsh-web-all@0.3.9 github:lwt-sadais/DSH-better-sidebar#ed28df8d66f1b9f9871fb358c6616289d23358f3 github:lwt-sadais/dsh-at-file#6dbc6209a881c97ae094081e5fb8899a9f4b1b05 github:lwt-sadais/dsh-archived-sessions#ada246b0def6db8fc6cdeb424abb520e56ccd068 github:lwt-sadais/dsh-git-diff#69c8458d3eefc507f4512983934cc046b4e736dd github:lwt-sadais/dsh-git-history#cf22d3e2c839d38f63064568021cdc2b854dd41d github:lwt-sadais/dsh-local-file-reference#4ccc956cc14b1e2d4c19634287b52dcfc3a3c955 github:lwt-sadais/dsh-plan-review-card#e73b29c58844c1327d5fd1f0658c7c385cbc92e7 github:lwt-sadais/dsh-reasoning-efforts#4d48a26b99fd1f4a4986403a0c9a3a6499efa897
+dsh plugin add --profile desktop link:$HOME/.dsh/plugins/dsh-settings-alpha1-compat @linxin666/dsh-web-all@0.3.9 github:lwt-sadais/DSH-better-sidebar#ed28df8d66f1b9f9871fb358c6616289d23358f3 github:lwt-sadais/dsh-at-file#6dbc6209a881c97ae094081e5fb8899a9f4b1b05 github:lwt-sadais/dsh-archived-sessions#ada246b0def6db8fc6cdeb424abb520e56ccd068 github:lwt-sadais/dsh-git-diff#69c8458d3eefc507f4512983934cc046b4e736dd github:lwt-sadais/dsh-git-history#cf22d3e2c839d38f63064568021cdc2b854dd41d github:lwt-sadais/dsh-local-file-reference#4ccc956cc14b1e2d4c19634287b52dcfc3a3c955 github:lwt-sadais/dsh-plan-review-card#e73b29c58844c1327d5fd1f0658c7c385cbc92e7 github:lwt-sadais/dsh-reasoning-efforts#eb66af3df2c99e5d5014bcedd61abb7d7c61a7d3
 ```
 
 > DSH Desktop 会为每次插件变更创建恢复事务。请等待上一条命令成功并完成恢复验证后再执行下一条；全部完成后完全退出并重新启动 DSH Desktop。
@@ -183,7 +183,7 @@ dsh plugin add --profile desktop link:$HOME/.dsh/plugins/dsh-settings-alpha1-com
 | `dsh-git-history` | `0.1.2-alpha.1` | [`lwt-sadais/dsh-git-history`](https://github.com/lwt-sadais/dsh-git-history) | Git 历史与远端同步；移除已删除的旧 Client Runtime |
 | `dsh-local-file-reference` | `0.1.2-alpha.1` | [`lwt-sadais/dsh-local-file-reference`](https://github.com/lwt-sadais/dsh-local-file-reference) | 本地文件路径引用；迁移到 `uiSession` 当前绑定 API |
 | `dsh-plan-review-card` | `0.1.2-alpha.1` | [`lwt-sadais/dsh-plan-review-card`](https://github.com/lwt-sadais/dsh-plan-review-card) | 结构化审查卡片；适配 alpha.1 `MarkdownText.labels` 契约，并通过 Portal 将完整阅读栏挂载到页面根层，避免 ToolRow 裁剪 |
-| `dsh-reasoning-efforts` | `0.1.2-alpha.1` | [`lwt-sadais/dsh-reasoning-efforts`](https://github.com/lwt-sadais/dsh-reasoning-efforts) | 按模型配置 Provider 推理等级与接口映射；使用 alpha.1 `ctx.remote.settings` 读取和保存设置 |
+| `dsh-reasoning-efforts` | `0.1.2-alpha.1` | [`lwt-sadais/dsh-reasoning-efforts`](https://github.com/lwt-sadais/dsh-reasoning-efforts) | 按模型原子配置 Provider 推理等级与输入能力；使用 alpha.1 `ctx.remote.settings` 读取和保存设置 |
 
 > `@deepseek-ai/dsh-base` 和 `@deepseek-ai/dsh-web-app` 是 DSH Desktop Profile 的内置基础 Bundle，不作为第三方插件重复安装。
 

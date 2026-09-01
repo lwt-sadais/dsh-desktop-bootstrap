@@ -21,7 +21,7 @@ $Plugins = @(
     [pscustomobject]@{ Name = 'dsh-git-history'; Source = 'github:lwt-sadais/dsh-git-history#cf22d3e2c839d38f63064568021cdc2b854dd41d' },
     [pscustomobject]@{ Name = 'dsh-local-file-reference'; Source = 'github:lwt-sadais/dsh-local-file-reference#4ccc956cc14b1e2d4c19634287b52dcfc3a3c955' },
     [pscustomobject]@{ Name = 'dsh-plan-review-card'; Source = 'github:lwt-sadais/dsh-plan-review-card#e73b29c58844c1327d5fd1f0658c7c385cbc92e7' },
-    [pscustomobject]@{ Name = 'dsh-reasoning-efforts'; Source = 'github:lwt-sadais/dsh-reasoning-efforts#4d48a26b99fd1f4a4986403a0c9a3a6499efa897' }
+    [pscustomobject]@{ Name = 'dsh-reasoning-efforts'; Source = 'github:lwt-sadais/dsh-reasoning-efforts#eb66af3df2c99e5d5014bcedd61abb7d7c61a7d3' }
 )
 $ObsoletePluginNames = @('@linxin666/dsh-web-ui-all')
 $MinimumReleaseAgeExcludes = @(
