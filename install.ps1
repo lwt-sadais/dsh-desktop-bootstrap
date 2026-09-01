@@ -217,6 +217,13 @@ const { pathToFileURL } = require('node:url')
     Write-InitLog '已将默认 Agent 预设设为 Codex 模式。'
 }
 
+# 始终按 UTF-8 读取 JSON，避免 Windows PowerShell 5.1 使用系统 ANSI 代码页。
+function Read-Utf8Json {
+    param([Parameter(Mandatory)][string]$LiteralPath)
+
+    return Get-Content -LiteralPath $LiteralPath -Raw -Encoding UTF8 | ConvertFrom-Json
+}
+
 # 执行外部命令，同时实时显示并返回合并后的标准输出与错误输出。
 function Invoke-CapturedCommand {
     param(
@@ -356,7 +363,7 @@ function Install-DesktopPlugins {
     $manifestPath = Join-Path $ProfileDirectory 'package.json'
     $dependencyNames = @()
     if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
-        $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+        $manifest = Read-Utf8Json -LiteralPath $manifestPath
         $dependencies = $manifest.PSObject.Properties['dependencies']
         if ($null -ne $dependencies) {
             $dependencyNames = @($dependencies.Value.PSObject.Properties.Name)
@@ -387,7 +394,7 @@ function Install-DesktopPlugins {
 # 确保兼容层先于会调用新设置 API 的第三方聚合包加载。
 function Set-SettingsCompatBundleOrder {
     $manifestPath = Join-Path $ProfileDirectory 'package.json'
-    $profile = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    $profile = Read-Utf8Json -LiteralPath $manifestPath
     $bundlesProperty = $profile.dsh.profile.PSObject.Properties['bundles']
     if ($null -eq $bundlesProperty) {
         throw 'Profile manifest 缺少 dsh.profile.bundles。'
@@ -459,7 +466,7 @@ const { pathToFileURL } = require('node:url')
         $env:DSH_CODEX_PRESET_ID = $previousPresetId
     }
     $profileManifestPath = Join-Path $ProfileDirectory 'package.json'
-    $profileManifest = Get-Content -LiteralPath $profileManifestPath -Raw | ConvertFrom-Json
+    $profileManifest = Read-Utf8Json -LiteralPath $profileManifestPath
     $profileDependencies = $profileManifest.PSObject.Properties['dependencies']
     $profileDsh = $profileManifest.PSObject.Properties['dsh']
     $profileSettings = if ($null -ne $profileDsh) { $profileDsh.Value.PSObject.Properties['profile'] } else { $null }
@@ -483,7 +490,7 @@ const { pathToFileURL } = require('node:url')
         if (-not (Test-Path -LiteralPath $packageManifestPath -PathType Leaf)) {
             throw "验证失败，未找到插件产物 $packageManifestPath。"
         }
-        $packageManifest = Get-Content -LiteralPath $packageManifestPath -Raw | ConvertFrom-Json
+        $packageManifest = Read-Utf8Json -LiteralPath $packageManifestPath
         $packageDsh = $packageManifest.PSObject.Properties['dsh']
         $bundle = if ($null -ne $packageDsh) { $packageDsh.Value.PSObject.Properties['bundle'] } else { $null }
         if ($null -ne $bundle -and $null -ne $bundle.Value.PSObject.Properties['patch'] -and $plugin.Name -notin $bundleNames) {
