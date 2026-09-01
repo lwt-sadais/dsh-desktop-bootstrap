@@ -6,13 +6,12 @@ readonly REPOSITORY="lwt-sadais/dsh-desktop-bootstrap"
 readonly ARCHIVE_URL="https://github.com/${REPOSITORY}/archive/refs/heads/main.tar.gz"
 readonly DSH_HOME="${HOME}/.dsh"
 readonly PROFILE_DIR="${DSH_HOME}/profiles/desktop"
-readonly BETTER_SIDEBAR_FORK="github:lwt-sadais/DSH-better-sidebar#60c6e4cbb2d2656158c4d4acce60ec66341e1641"
-readonly BETTER_SIDEBAR_BUILD_KEY="dsh-better-sidebar@https://codeload.github.com/lwt-sadais/DSH-better-sidebar/tar.gz/60c6e4cbb2d2656158c4d4acce60ec66341e1641"
+readonly BETTER_SIDEBAR_FORK="github:lwt-sadais/DSH-better-sidebar#ed28df8d66f1b9f9871fb358c6616289d23358f3"
 readonly CODEX_PRESET_ID="codex-mode"
 readonly AGENT_PRESETS_DIR="${DSH_HOME}/.agent-presets"
 readonly SETTINGS_FILE="${DSH_HOME}/settings.yaml"
 readonly PLUGIN_NAMES=(
-  "@linxin666/dsh-web-ui-all"
+  "@linxin666/dsh-web-all"
   "dsh-better-sidebar"
   "dsh-at-file"
   "@muwinds/dsh-archived-sessions"
@@ -23,34 +22,38 @@ readonly PLUGIN_NAMES=(
   "dsh-reasoning-efforts"
 )
 readonly PLUGIN_SOURCES=(
-  "@linxin666/dsh-web-ui-all@0.2.7"
+  "@linxin666/dsh-web-all@0.3.9"
   "${BETTER_SIDEBAR_FORK}"
-  "github:FSMargoo/dsh-at-file"
-  "github:MuWinds/dsh-archived-sessions"
-  "github:lwt-sadais/dsh-git-diff"
-  "github:lwt-sadais/dsh-git-history"
-  "github:lwt-sadais/dsh-local-file-reference"
-  "github:lwt-sadais/dsh-plan-review-card"
-  "github:lwt-sadais/dsh-reasoning-efforts"
+  "github:lwt-sadais/dsh-at-file#6dbc6209a881c97ae094081e5fb8899a9f4b1b05"
+  "github:lwt-sadais/dsh-archived-sessions#ada246b0def6db8fc6cdeb424abb520e56ccd068"
+  "github:lwt-sadais/dsh-git-diff#69c8458d3eefc507f4512983934cc046b4e736dd"
+  "github:lwt-sadais/dsh-git-history#cf22d3e2c839d38f63064568021cdc2b854dd41d"
+  "github:lwt-sadais/dsh-local-file-reference#4ccc956cc14b1e2d4c19634287b52dcfc3a3c955"
+  "github:lwt-sadais/dsh-plan-review-card#83b919c21036602db94f3a4bcb7197e76237fc79"
+  "github:lwt-sadais/dsh-reasoning-efforts#f22f16015e633f7077539e49c7e614c44995fef0"
+)
+readonly OBSOLETE_PLUGIN_NAMES=(
+  "@linxin666/dsh-web-ui-all"
 )
 readonly MINIMUM_RELEASE_AGE_EXCLUDES=(
-  "@linxin666/dsh-chat-recovery@0.2.7"
-  "@linxin666/dsh-client-ui-aionui-panel@0.2.7"
-  "@linxin666/dsh-client-ui-community-plugins@0.2.7"
-  "@linxin666/dsh-client-ui-git-graph@0.2.7"
-  "@linxin666/dsh-client-ui-plugin-manager@0.2.7"
-  "@linxin666/dsh-client-ui-skill-explorer@0.2.7"
-  "@linxin666/dsh-client-ui-skin-center@0.2.7"
-  "@linxin666/dsh-client-ui-task-board@0.2.7"
-  "@linxin666/dsh-client-ui-web-ui-settings@0.2.7"
-  "@linxin666/dsh-desktop-launcher@0.2.7"
-  "@linxin666/dsh-liangshen@0.2.7"
-  "@linxin666/dsh-pet@0.2.7"
-  "@linxin666/dsh-remote-web-ui@0.2.7"
-  "@linxin666/dsh-skins@0.2.7"
-  "@linxin666/dsh-ssh@0.2.7"
-  "@linxin666/dsh-tool-describe-image@0.2.7"
-  "@linxin666/dsh-web-ui-all@0.2.7"
+  "@linxin666/dsh-client-ui-plugin-manager@0.3.9"
+  "@linxin666/dsh-client-ui-community-plugins@0.3.9"
+  "@linxin666/dsh-client-ui-market@0.3.9"
+  "@linxin666/dsh-client-ui-task-board@0.3.9"
+  "@linxin666/dsh-client-ui-git-graph@0.3.9"
+  "@linxin666/dsh-perf@0.3.9"
+  "@linxin666/dsh-pet@0.3.9"
+  "@linxin666/dsh-remote-web-ui@0.3.9"
+  "@linxin666/dsh-ssh@0.3.9"
+  "@linxin666/dsh-tool-describe-image@0.3.9"
+  "@linxin666/dsh-liangshen@0.3.9"
+  "@linxin666/dsh-client-ui-skill-explorer@0.3.9"
+  "@linxin666/dsh-desktop-launcher@0.3.9"
+  "@linxin666/dsh-doctor@0.3.9"
+  "@linxin666/dsh-usage@0.3.9"
+  "@linxin666/dsh-client-ui-web-ui-settings@0.3.9"
+  "@linxin666/dsh-client-ui-skin-center@0.3.9"
+  "@linxin666/dsh-web-all@0.3.9"
 )
 
 TEMP_DIR=""
@@ -219,7 +222,7 @@ add_minimum_release_age_excludes() {
     }
   ' "${verified_json}" "${MINIMUM_RELEASE_AGE_EXCLUDES[@]}" || fail "供应链策略配置验证失败。"
 
-  log "已保留现有策略，并加入 Web UI 0.2.7 的精确发布时间豁免。"
+  log "已保留现有策略，并加入 Web UI 0.3.9 的精确发布时间豁免。"
 }
 
 # 拒绝可选的 cpu-features 原生构建，再批准其余全部待审批依赖脚本。
@@ -236,32 +239,6 @@ approve_pending_builds_except_cpu_features() {
 
   log "正在批准除 cpu-features 外的全部待审批依赖构建脚本……"
   (cd "${PROFILE_DIR}" && pnpm approve-builds --all)
-}
-
-# 允许固定提交的 Fork 执行 prepare 构建；键精确到 codeload URL，不放宽其它 GitHub 包。
-enable_better_sidebar_build() {
-  local current_json merged_json verified_json
-
-  current_json="$(cd "${PROFILE_DIR}" && pnpm config get --location project --json allowBuilds)" \
-    || fail "读取 Desktop Profile 的 allowBuilds 失败。"
-  merged_json="$(node -e '
-    const raw = process.argv[1];
-    const current = raw && raw !== "null" && raw !== "undefined" ? JSON.parse(raw) : {};
-    current[process.argv[2]] = true;
-    process.stdout.write(JSON.stringify(current));
-  ' "${current_json}" "${BETTER_SIDEBAR_BUILD_KEY}")" \
-    || fail "合并 Desktop Profile 的 better-sidebar allowBuilds 失败。"
-  (cd "${PROFILE_DIR}" && pnpm config set --location project --json allowBuilds "${merged_json}") \
-    || fail "写入 Desktop Profile 的 better-sidebar allowBuilds 失败。"
-  verified_json="$(cd "${PROFILE_DIR}" && pnpm config get --location project --json allowBuilds)" \
-    || fail "验证 Desktop Profile 的 better-sidebar allowBuilds 失败。"
-  node -e '
-    const configured = JSON.parse(process.argv[1]);
-    if (configured[process.argv[2]] !== true) process.exit(1);
-  ' "${verified_json}" "${BETTER_SIDEBAR_BUILD_KEY}" \
-    || fail "better-sidebar allowBuilds 验证失败，读取到：${verified_json}"
-
-  log "已批准固定 better-sidebar Fork 提交执行构建脚本。"
 }
 
 # 执行一次插件安装或更新；依赖构建被拦截时完成审批并仅重试原命令一次。
@@ -292,12 +269,13 @@ run_plugin_operation() {
   fail "Desktop Profile 插件${label}失败，请根据上方错误处理后重试。"
 }
 
-# 缺失插件按来源批量安装，已声明插件按真实包名批量更新，兼容 Desktop 2.0.1 与 2.0.2。
+# 移除已被 0.3.9 聚合包替代的旧包，再按完整来源安装或更新目标插件。
 install_plugins() {
   local manifest="${PROFILE_DIR}/package.json"
-  local installed_flags index
+  local installed_flags obsolete_flags index
   local install_sources=()
   local update_names=()
+  local remove_names=()
 
   [[ ${#PLUGIN_NAMES[@]} -eq ${#PLUGIN_SOURCES[@]} ]] || fail "插件包名与来源配置数量不一致。"
   installed_flags="$(node -e '
@@ -307,6 +285,23 @@ install_plugins() {
     catch (error) { if (error?.code !== "ENOENT") throw error; }
     for (const name of process.argv.slice(2)) console.log(Object.hasOwn(dependencies, name) ? "1" : "0");
   ' "${manifest}" "${PLUGIN_NAMES[@]}")" || fail "读取 Desktop Profile 插件声明失败。"
+  obsolete_flags="$(node -e '
+    const { readFileSync } = require("node:fs");
+    let dependencies = {};
+    try { dependencies = JSON.parse(readFileSync(process.argv[1], "utf8")).dependencies ?? {}; }
+    catch (error) { if (error?.code !== "ENOENT") throw error; }
+    for (const name of process.argv.slice(2)) console.log(Object.hasOwn(dependencies, name) ? "1" : "0");
+  ' "${manifest}" "${OBSOLETE_PLUGIN_NAMES[@]}")" || fail "读取旧插件声明失败。"
+
+  index=0
+  while IFS= read -r installed; do
+    [[ "${installed}" == "1" ]] && remove_names+=("${OBSOLETE_PLUGIN_NAMES[${index}]}")
+    index=$((index + 1))
+  done <<<"${obsolete_flags}"
+  [[ ${index} -eq ${#OBSOLETE_PLUGIN_NAMES[@]} ]] || fail "旧插件分类结果不完整。"
+  if [[ ${#remove_names[@]} -gt 0 ]]; then
+    run_plugin_operation remove "移除旧版" "${remove_names[@]}"
+  fi
 
   index=0
   while IFS= read -r installed; do
@@ -329,53 +324,6 @@ install_plugins() {
   else
     log "当前没有已安装插件需要更新。"
   fi
-}
-
-# 为 Web UI 0.2.7 的插件管理器补充 DSH Desktop Profile 识别，并对版本和源码指纹做严格约束。
-repair_plugin_manager_desktop_profile() {
-  local package_dir="${PROFILE_DIR}/node_modules/@linxin666/dsh-client-ui-plugin-manager"
-  local package_json="${package_dir}/package.json"
-  local entry_path="${package_dir}/lib/index.js"
-  local backup_path="${entry_path}.backup-dsh-desktop-bootstrap"
-  [[ -f "${package_json}" && -f "${entry_path}" ]] \
-    || fail "未找到 @linxin666/dsh-client-ui-plugin-manager，无法应用 DSH Desktop 兼容补丁。"
-
-  PLUGIN_MANAGER_PACKAGE_JSON="${package_json}" PLUGIN_MANAGER_ENTRY="${entry_path}" \
-    PLUGIN_MANAGER_BACKUP="${backup_path}" node --input-type=module <<'NODE' \
-    || fail "插件管理器 DSH Desktop 兼容补丁失败。"
-import { constants } from 'node:fs'
-import { copyFile, readFile, writeFile } from 'node:fs/promises'
-
-const packageJson = process.env.PLUGIN_MANAGER_PACKAGE_JSON
-const entryPath = process.env.PLUGIN_MANAGER_ENTRY
-const backupPath = process.env.PLUGIN_MANAGER_BACKUP
-const pkg = JSON.parse(await readFile(packageJson, 'utf8'))
-if (pkg.version !== '0.2.7') {
-  throw new Error(`插件管理器版本为 ${pkg.version}，兼容补丁仅适用于 0.2.7；请检查上游版本后更新初始化脚本。`)
-}
-
-const oldResolver = 'function resolveProfile(argv = process.argv, env = process.env) {'
-const newResolver = 'function resolveProfile(argv = process.argv, env = process.env, desktopProfileName) {'
-const oldFallback = 'else if (argv.includes("web")) name = "web";'
-const newFallback = 'else if (typeof desktopProfileName === "string" && desktopProfileName.trim() !== "") name = desktopProfileName.trim();\n\telse if (argv.includes("web")) name = "web";'
-const oldApply = 'facts = resolveProfile();'
-const newApply = 'const desktopProfiles = ctx.get("desktopProfiles");\n\t\tfacts = resolveProfile(process.argv, process.env, desktopProfiles?.current?.name);'
-let content = await readFile(entryPath, 'utf8')
-if (content.includes(newResolver) && content.includes('desktopProfiles?.current?.name')) process.exit(0)
-for (const requiredSource of [oldResolver, oldFallback, oldApply]) {
-  if (!content.includes(requiredSource)) throw new Error(`插件管理器源码指纹不匹配，拒绝修改 ${entryPath}。`)
-}
-await copyFile(entryPath, backupPath, constants.COPYFILE_EXCL).catch((error) => {
-  if (error?.code !== 'EEXIST') throw error
-})
-content = content.replace(oldResolver, newResolver).replace(oldFallback, newFallback).replace(oldApply, newApply)
-await writeFile(entryPath, content, 'utf8')
-const verified = await readFile(entryPath, 'utf8')
-if (!verified.includes(newResolver) || !verified.includes('desktopProfiles?.current?.name')) {
-  throw new Error('插件管理器 DSH Desktop 兼容补丁回读验证失败。')
-}
-NODE
-  log "已确认插件管理器具备 Desktop Profile 识别；原文件备份路径为 ${backup_path}。"
 }
 
 # 验证关键文件均已落盘，避免仅凭命令退出状态判断初始化成功。
@@ -446,9 +394,7 @@ main() {
   install_agent_presets
   set_default_agent_preset
   add_minimum_release_age_excludes
-  enable_better_sidebar_build
   install_plugins
-  repair_plugin_manager_desktop_profile
   verify_installation
 
   log "初始化完成。首次使用 gpt-image-generator 时，Skill 会自动检测并询问缺失配置。请完全退出并重新启动 DSH Desktop。"

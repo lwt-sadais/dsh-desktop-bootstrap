@@ -5,40 +5,41 @@ $Repository = 'lwt-sadais/dsh-desktop-bootstrap'
 $ArchiveUrl = "https://github.com/$Repository/archive/refs/heads/main.zip"
 $DshHome = Join-Path $HOME '.dsh'
 $ProfileDirectory = Join-Path $DshHome 'profiles/desktop'
-$BetterSidebarFork = 'github:lwt-sadais/DSH-better-sidebar#60c6e4cbb2d2656158c4d4acce60ec66341e1641'
-$BetterSidebarBuildKey = 'dsh-better-sidebar@https://codeload.github.com/lwt-sadais/DSH-better-sidebar/tar.gz/60c6e4cbb2d2656158c4d4acce60ec66341e1641'
+$BetterSidebarFork = 'github:lwt-sadais/DSH-better-sidebar#ed28df8d66f1b9f9871fb358c6616289d23358f3'
 $CodexPresetId = 'codex-mode'
 $AgentPresetsDirectory = Join-Path $DshHome '.agent-presets'
 $SettingsFile = Join-Path $DshHome 'settings.yaml'
 $Plugins = @(
-    [pscustomobject]@{ Name = '@linxin666/dsh-web-ui-all'; Source = '@linxin666/dsh-web-ui-all@0.2.7' },
+    [pscustomobject]@{ Name = '@linxin666/dsh-web-all'; Source = '@linxin666/dsh-web-all@0.3.9' },
     [pscustomobject]@{ Name = 'dsh-better-sidebar'; Source = $BetterSidebarFork },
-    [pscustomobject]@{ Name = 'dsh-at-file'; Source = 'github:FSMargoo/dsh-at-file' },
-    [pscustomobject]@{ Name = '@muwinds/dsh-archived-sessions'; Source = 'github:MuWinds/dsh-archived-sessions' },
-    [pscustomobject]@{ Name = 'dsh-git-diff'; Source = 'github:lwt-sadais/dsh-git-diff' },
-    [pscustomobject]@{ Name = 'dsh-git-history'; Source = 'github:lwt-sadais/dsh-git-history' },
-    [pscustomobject]@{ Name = 'dsh-local-file-reference'; Source = 'github:lwt-sadais/dsh-local-file-reference' },
-    [pscustomobject]@{ Name = 'dsh-plan-review-card'; Source = 'github:lwt-sadais/dsh-plan-review-card' },
-    [pscustomobject]@{ Name = 'dsh-reasoning-efforts'; Source = 'github:lwt-sadais/dsh-reasoning-efforts' }
+    [pscustomobject]@{ Name = 'dsh-at-file'; Source = 'github:lwt-sadais/dsh-at-file#6dbc6209a881c97ae094081e5fb8899a9f4b1b05' },
+    [pscustomobject]@{ Name = '@muwinds/dsh-archived-sessions'; Source = 'github:lwt-sadais/dsh-archived-sessions#ada246b0def6db8fc6cdeb424abb520e56ccd068' },
+    [pscustomobject]@{ Name = 'dsh-git-diff'; Source = 'github:lwt-sadais/dsh-git-diff#69c8458d3eefc507f4512983934cc046b4e736dd' },
+    [pscustomobject]@{ Name = 'dsh-git-history'; Source = 'github:lwt-sadais/dsh-git-history#cf22d3e2c839d38f63064568021cdc2b854dd41d' },
+    [pscustomobject]@{ Name = 'dsh-local-file-reference'; Source = 'github:lwt-sadais/dsh-local-file-reference#4ccc956cc14b1e2d4c19634287b52dcfc3a3c955' },
+    [pscustomobject]@{ Name = 'dsh-plan-review-card'; Source = 'github:lwt-sadais/dsh-plan-review-card#83b919c21036602db94f3a4bcb7197e76237fc79' },
+    [pscustomobject]@{ Name = 'dsh-reasoning-efforts'; Source = 'github:lwt-sadais/dsh-reasoning-efforts#f22f16015e633f7077539e49c7e614c44995fef0' }
 )
+$ObsoletePluginNames = @('@linxin666/dsh-web-ui-all')
 $MinimumReleaseAgeExcludes = @(
-    '@linxin666/dsh-chat-recovery@0.2.7',
-    '@linxin666/dsh-client-ui-aionui-panel@0.2.7',
-    '@linxin666/dsh-client-ui-community-plugins@0.2.7',
-    '@linxin666/dsh-client-ui-git-graph@0.2.7',
-    '@linxin666/dsh-client-ui-plugin-manager@0.2.7',
-    '@linxin666/dsh-client-ui-skill-explorer@0.2.7',
-    '@linxin666/dsh-client-ui-skin-center@0.2.7',
-    '@linxin666/dsh-client-ui-task-board@0.2.7',
-    '@linxin666/dsh-client-ui-web-ui-settings@0.2.7',
-    '@linxin666/dsh-desktop-launcher@0.2.7',
-    '@linxin666/dsh-liangshen@0.2.7',
-    '@linxin666/dsh-pet@0.2.7',
-    '@linxin666/dsh-remote-web-ui@0.2.7',
-    '@linxin666/dsh-skins@0.2.7',
-    '@linxin666/dsh-ssh@0.2.7',
-    '@linxin666/dsh-tool-describe-image@0.2.7',
-    '@linxin666/dsh-web-ui-all@0.2.7'
+    '@linxin666/dsh-client-ui-plugin-manager@0.3.9',
+    '@linxin666/dsh-client-ui-community-plugins@0.3.9',
+    '@linxin666/dsh-client-ui-market@0.3.9',
+    '@linxin666/dsh-client-ui-task-board@0.3.9',
+    '@linxin666/dsh-client-ui-git-graph@0.3.9',
+    '@linxin666/dsh-perf@0.3.9',
+    '@linxin666/dsh-pet@0.3.9',
+    '@linxin666/dsh-remote-web-ui@0.3.9',
+    '@linxin666/dsh-ssh@0.3.9',
+    '@linxin666/dsh-tool-describe-image@0.3.9',
+    '@linxin666/dsh-liangshen@0.3.9',
+    '@linxin666/dsh-client-ui-skill-explorer@0.3.9',
+    '@linxin666/dsh-desktop-launcher@0.3.9',
+    '@linxin666/dsh-doctor@0.3.9',
+    '@linxin666/dsh-usage@0.3.9',
+    '@linxin666/dsh-client-ui-web-ui-settings@0.3.9',
+    '@linxin666/dsh-client-ui-skin-center@0.3.9',
+    '@linxin666/dsh-web-all@0.3.9'
 )
 $script:TempDirectory = $null
 $script:SourceDirectory = $null
@@ -271,7 +272,7 @@ function Add-MinimumReleaseAgeExcludes {
         Pop-Location
     }
 
-    Write-InitLog '已保留现有策略，并加入 Web UI 0.2.7 的精确发布时间豁免。'
+    Write-InitLog '已保留现有策略，并加入 Web UI 0.3.9 的精确发布时间豁免。'
 }
 
 # 拒绝可选的 cpu-features 原生构建，再批准其余全部待审批依赖脚本。
@@ -304,49 +305,10 @@ function Approve-PendingBuildsExceptCpuFeatures {
     }
 }
 
-# 允许固定提交的 Fork 执行 prepare 构建；键精确到 codeload URL，不放宽其它 GitHub 包。
-function Enable-BetterSidebarBuild {
-    if (-not (Get-Command 'pnpm' -ErrorAction SilentlyContinue)) {
-        throw '当前终端中找不到 pnpm，无法批准 better-sidebar Fork 构建。'
-    }
-
-    Push-Location $ProfileDirectory
-    try {
-        $currentJson = (& pnpm config get --location project --json allowBuilds 2>$null | Out-String).Trim()
-        if ($LASTEXITCODE -ne 0) {
-            throw '读取 Desktop Profile 的 allowBuilds 失败。'
-        }
-        $merged = [ordered]@{}
-        if ($currentJson -and $currentJson -ne 'null' -and $currentJson -ne 'undefined') {
-            $current = $currentJson | ConvertFrom-Json
-            foreach ($property in $current.PSObject.Properties) {
-                $merged[$property.Name] = $property.Value
-            }
-        }
-        $merged[$BetterSidebarBuildKey] = $true
-        $mergedJson = ConvertTo-Json -InputObject $merged -Compress
-        $escapedJson = $mergedJson.Replace('"', '\"')
-        & pnpm config set --location project --json allowBuilds $escapedJson
-        if ($LASTEXITCODE -ne 0) {
-            throw '写入 Desktop Profile 的 better-sidebar allowBuilds 失败。'
-        }
-        $verifiedJson = (& pnpm config get --location project --json allowBuilds 2>$null | Out-String).Trim()
-        $verified = $verifiedJson | ConvertFrom-Json
-        if ($verified.$BetterSidebarBuildKey -ne $true) {
-            throw "better-sidebar allowBuilds 验证失败，读取到：$verifiedJson"
-        }
-    }
-    finally {
-        Pop-Location
-    }
-
-    Write-InitLog '已批准固定 better-sidebar Fork 提交执行构建脚本。'
-}
-
 # 执行一次插件安装或更新；依赖构建被拦截时完成审批并仅重试原命令一次。
 function Invoke-PluginOperation {
     param(
-        [Parameter(Mandatory)][ValidateSet('add', 'update')][string]$Action,
+        [Parameter(Mandatory)][ValidateSet('add', 'update', 'remove')][string]$Action,
         [Parameter(Mandatory)][string]$Label,
         [Parameter(Mandatory)][string[]]$Targets
     )
@@ -374,7 +336,7 @@ function Invoke-PluginOperation {
     throw "Desktop Profile 插件$Label失败：$($Targets -join ', ')"
 }
 
-# 缺失插件按来源批量安装，已声明插件按真实包名批量更新，兼容 Desktop 2.0.1 与 2.0.2。
+# 移除已被 0.3.9 聚合包替代的旧包，再按完整来源安装或更新目标插件。
 function Install-DesktopPlugins {
     $manifestPath = Join-Path $ProfileDirectory 'package.json'
     $dependencyNames = @()
@@ -384,6 +346,11 @@ function Install-DesktopPlugins {
         if ($null -ne $dependencies) {
             $dependencyNames = @($dependencies.Value.PSObject.Properties.Name)
         }
+    }
+
+    $removeNames = @($ObsoletePluginNames | Where-Object { $_ -in $dependencyNames })
+    if ($removeNames.Count -gt 0) {
+        Invoke-PluginOperation -Action 'remove' -Label '移除旧版' -Targets $removeNames
     }
 
     $installSources = @($Plugins | Where-Object { $_.Name -notin $dependencyNames } | ForEach-Object { $_.Source })
@@ -400,51 +367,6 @@ function Install-DesktopPlugins {
     else {
         Write-InitLog '当前没有已安装插件需要更新。'
     }
-}
-
-# 为 Web UI 0.2.7 的插件管理器补充 DSH Desktop Profile 识别，并对版本和源码指纹做严格约束。
-function Repair-PluginManagerDesktopProfile {
-    $packageDirectory = Join-Path $ProfileDirectory 'node_modules/@linxin666/dsh-client-ui-plugin-manager'
-    $packageJsonPath = Join-Path $packageDirectory 'package.json'
-    $entryPath = Join-Path $packageDirectory 'lib/index.js'
-    $backupPath = "$entryPath.backup-dsh-desktop-bootstrap"
-    if (-not (Test-Path -LiteralPath $packageJsonPath -PathType Leaf) -or -not (Test-Path -LiteralPath $entryPath -PathType Leaf)) {
-        throw '未找到 @linxin666/dsh-client-ui-plugin-manager，无法应用 DSH Desktop 兼容补丁。'
-    }
-
-    $package = Get-Content -LiteralPath $packageJsonPath -Raw | ConvertFrom-Json
-    if ($package.version -ne '0.2.7') {
-        throw "插件管理器版本为 $($package.version)，兼容补丁仅适用于 0.2.7；请检查上游版本后更新初始化脚本。"
-    }
-
-    $oldResolver = 'function resolveProfile(argv = process.argv, env = process.env) {'
-    $newResolver = 'function resolveProfile(argv = process.argv, env = process.env, desktopProfileName) {'
-    $oldFallback = 'else if (argv.includes("web")) name = "web";'
-    $newFallback = "else if (typeof desktopProfileName === `"string`" && desktopProfileName.trim() !== `"`") name = desktopProfileName.trim();`n`telse if (argv.includes(`"web`")) name = `"web`";"
-    $oldApply = 'facts = resolveProfile();'
-    $newApply = "const desktopProfiles = ctx.get(`"desktopProfiles`");`n`t`tfacts = resolveProfile(process.argv, process.env, desktopProfiles?.current?.name);"
-    $content = Get-Content -LiteralPath $entryPath -Raw
-    if ($content.Contains($newResolver) -and $content.Contains('desktopProfiles?.current?.name')) {
-        Write-InitLog '插件管理器 DSH Desktop 兼容补丁已存在，跳过重复修改。'
-        return
-    }
-    foreach ($requiredSource in @($oldResolver, $oldFallback, $oldApply)) {
-        if (-not $content.Contains($requiredSource)) {
-            throw "插件管理器源码指纹不匹配，拒绝修改 $entryPath。"
-        }
-    }
-
-    if (-not (Test-Path -LiteralPath $backupPath -PathType Leaf)) {
-        Copy-Item -LiteralPath $entryPath -Destination $backupPath
-    }
-    $content = $content.Replace($oldResolver, $newResolver).Replace($oldFallback, $newFallback).Replace($oldApply, $newApply)
-    $utf8WithoutBom = New-Object System.Text.UTF8Encoding($false)
-    [System.IO.File]::WriteAllText($entryPath, $content, $utf8WithoutBom)
-    $verified = Get-Content -LiteralPath $entryPath -Raw
-    if (-not $verified.Contains($newResolver) -or -not $verified.Contains('desktopProfiles?.current?.name')) {
-        throw '插件管理器 DSH Desktop 兼容补丁回读验证失败。'
-    }
-    Write-InitLog "已修复插件管理器的 Desktop Profile 识别；原文件备份为 $backupPath。"
 }
 
 # 验证关键文件均已落盘，避免仅凭命令退出状态判断初始化成功。
@@ -556,9 +478,7 @@ function Start-Initialization {
         Install-AgentPresets
         Set-DefaultAgentPreset
         Add-MinimumReleaseAgeExcludes
-        Enable-BetterSidebarBuild
         Install-DesktopPlugins
-        Repair-PluginManagerDesktopProfile
         Test-Installation
         Write-InitLog '初始化完成。首次使用 gpt-image-generator 时，Skill 会自动检测并询问缺失配置。请完全退出并重新启动 DSH Desktop。'
     }

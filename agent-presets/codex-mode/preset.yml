@@ -1,2 +1,3 @@
 name: Codex模式
 description: 基于标准模式的 Codex 风格编码 Agent：能力完整，少解释、快执行、结论清晰。
+order: 2
