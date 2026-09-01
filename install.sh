@@ -6,11 +6,14 @@ readonly REPOSITORY="lwt-sadais/dsh-desktop-bootstrap"
 readonly ARCHIVE_URL="https://github.com/${REPOSITORY}/archive/refs/heads/main.tar.gz"
 readonly DSH_HOME="${HOME}/.dsh"
 readonly PROFILE_DIR="${DSH_HOME}/profiles/desktop"
+readonly COMPAT_PLUGIN_NAME="dsh-settings-alpha1-compat"
+readonly COMPAT_PLUGIN_DIR="${DSH_HOME}/plugins/${COMPAT_PLUGIN_NAME}"
 readonly BETTER_SIDEBAR_FORK="github:lwt-sadais/DSH-better-sidebar#ed28df8d66f1b9f9871fb358c6616289d23358f3"
 readonly CODEX_PRESET_ID="codex-mode"
 readonly AGENT_PRESETS_DIR="${DSH_HOME}/.agent-presets"
 readonly SETTINGS_FILE="${DSH_HOME}/settings.yaml"
 readonly PLUGIN_NAMES=(
+  "${COMPAT_PLUGIN_NAME}"
   "@linxin666/dsh-web-all"
   "dsh-better-sidebar"
   "dsh-at-file"
@@ -22,6 +25,7 @@ readonly PLUGIN_NAMES=(
   "dsh-reasoning-efforts"
 )
 readonly PLUGIN_SOURCES=(
+  "link:${COMPAT_PLUGIN_DIR}"
   "@linxin666/dsh-web-all@0.3.9"
   "${BETTER_SIDEBAR_FORK}"
   "github:lwt-sadais/dsh-at-file#6dbc6209a881c97ae094081e5fb8899a9f4b1b05"
@@ -139,6 +143,16 @@ install_skills() {
   mkdir -p "${DSH_HOME}/skills" || fail "无法创建 Skills 目录。"
   cp -R "${SOURCE_DIR}/skills/." "${DSH_HOME}/skills/" || fail "安装 Skills 失败。"
   log "已合并安装用户级 Skills，现有私密配置保持不变。"
+}
+
+# 安装仓库内置的 Harness alpha.1 设置 API 兼容插件。
+install_settings_compat_plugin() {
+  local source_path="${SOURCE_DIR}/plugins/${COMPAT_PLUGIN_NAME}"
+
+  [[ -f "${source_path}/package.json" ]] || fail "兼容插件源码不完整：${source_path}。"
+  mkdir -p "${COMPAT_PLUGIN_DIR}" || fail "无法创建兼容插件目录 ${COMPAT_PLUGIN_DIR}。"
+  cp -R "${source_path}/." "${COMPAT_PLUGIN_DIR}/" || fail "安装设置 API 兼容插件失败。"
+  log "已安装 Harness alpha.1 设置 API 兼容插件。"
 }
 
 # 备份已有同名 Agent 预设，并安装仓库中的 Codex 模式。
@@ -326,6 +340,30 @@ install_plugins() {
   fi
 }
 
+# 确保兼容层先于会调用新设置 API 的第三方聚合包加载。
+order_settings_compat_bundle() {
+  DSH_PROFILE_DIR="${PROFILE_DIR}" node --input-type=module <<'NODE' || fail "无法调整设置兼容插件的加载顺序。"
+import { readFile, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+
+const manifestPath = join(process.env.DSH_PROFILE_DIR, 'package.json')
+const profile = JSON.parse(await readFile(manifestPath, 'utf8'))
+const bundles = profile.dsh?.profile?.bundles
+if (!Array.isArray(bundles)) throw new Error('Profile manifest 缺少 dsh.profile.bundles')
+const compat = 'dsh-settings-alpha1-compat'
+const webAll = '@linxin666/dsh-web-all'
+const compatIndex = bundles.indexOf(compat)
+const webAllIndex = bundles.indexOf(webAll)
+if (compatIndex === -1 || webAllIndex === -1) throw new Error('Profile Bundle 列表缺少兼容插件或 dsh-web-all')
+if (compatIndex > webAllIndex) {
+  bundles.splice(compatIndex, 1)
+  bundles.splice(webAllIndex, 0, compat)
+  await writeFile(manifestPath, `${JSON.stringify(profile, null, 2)}\n`, 'utf8')
+}
+NODE
+  log "已确认设置兼容插件先于 Web UI 聚合包加载。"
+}
+
 # 验证关键文件均已落盘，避免仅凭命令退出状态判断初始化成功。
 verify_installation() {
   local required_path
@@ -335,6 +373,9 @@ verify_installation() {
     "${DSH_HOME}/skills/gpt-image-generator/SKILL.md"
     "${AGENT_PRESETS_DIR}/${CODEX_PRESET_ID}/agent.cordis.yml"
     "${AGENT_PRESETS_DIR}/${CODEX_PRESET_ID}/preset.yml"
+    "${COMPAT_PLUGIN_DIR}/package.json"
+    "${COMPAT_PLUGIN_DIR}/index.js"
+    "${COMPAT_PLUGIN_DIR}/cordis.patch.yml"
   )
 
   for required_path in "${required_paths[@]}"; do
@@ -360,7 +401,13 @@ const profileDir = process.env.DSH_PROFILE_DIR
 const names = process.argv.slice(2)
 const profile = JSON.parse(await readFile(join(profileDir, 'package.json'), 'utf8'))
 const dependencies = profile.dependencies ?? {}
-const bundles = new Set(profile.dsh?.profile?.bundles ?? [])
+const bundleList = profile.dsh?.profile?.bundles ?? []
+const bundles = new Set(bundleList)
+const compatIndex = bundleList.indexOf('dsh-settings-alpha1-compat')
+const webAllIndex = bundleList.indexOf('@linxin666/dsh-web-all')
+if (compatIndex === -1 || webAllIndex === -1 || compatIndex > webAllIndex) {
+  throw new Error('设置兼容插件必须位于 dsh-web-all 之前')
+}
 for (const name of names) {
   if (!Object.hasOwn(dependencies, name)) throw new Error(`Profile dependencies 缺少 ${name}`)
   const packageDir = join(profileDir, 'node_modules', ...name.split('/'))
@@ -391,10 +438,12 @@ main() {
   download_source
   install_agents
   install_skills
+  install_settings_compat_plugin
   install_agent_presets
   set_default_agent_preset
   add_minimum_release_age_excludes
   install_plugins
+  order_settings_compat_bundle
   verify_installation
 
   log "初始化完成。首次使用 gpt-image-generator 时，Skill 会自动检测并询问缺失配置。请完全退出并重新启动 DSH Desktop。"

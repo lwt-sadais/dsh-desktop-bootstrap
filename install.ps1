@@ -5,11 +5,14 @@ $Repository = 'lwt-sadais/dsh-desktop-bootstrap'
 $ArchiveUrl = "https://github.com/$Repository/archive/refs/heads/main.zip"
 $DshHome = Join-Path $HOME '.dsh'
 $ProfileDirectory = Join-Path $DshHome 'profiles/desktop'
+$CompatPluginName = 'dsh-settings-alpha1-compat'
+$CompatPluginDirectory = Join-Path $DshHome "plugins/$CompatPluginName"
 $BetterSidebarFork = 'github:lwt-sadais/DSH-better-sidebar#ed28df8d66f1b9f9871fb358c6616289d23358f3'
 $CodexPresetId = 'codex-mode'
 $AgentPresetsDirectory = Join-Path $DshHome '.agent-presets'
 $SettingsFile = Join-Path $DshHome 'settings.yaml'
 $Plugins = @(
+    [pscustomobject]@{ Name = $CompatPluginName; Source = "link:$CompatPluginDirectory" },
     [pscustomobject]@{ Name = '@linxin666/dsh-web-all'; Source = '@linxin666/dsh-web-all@0.3.9' },
     [pscustomobject]@{ Name = 'dsh-better-sidebar'; Source = $BetterSidebarFork },
     [pscustomobject]@{ Name = 'dsh-at-file'; Source = 'github:lwt-sadais/dsh-at-file#6dbc6209a881c97ae094081e5fb8899a9f4b1b05' },
@@ -120,6 +123,18 @@ function Install-UserSkills {
     New-Item -ItemType Directory -Path $skillsTarget -Force | Out-Null
     Copy-Item -Path (Join-Path $skillsSource '*') -Destination $skillsTarget -Recurse -Force
     Write-InitLog '已合并安装用户级 Skills，现有私密配置保持不变。'
+}
+
+# 安装仓库内置的 Harness alpha.1 设置 API 兼容插件。
+function Install-SettingsCompatPlugin {
+    $sourcePath = Join-Path $script:SourceDirectory "plugins/$CompatPluginName"
+    if (-not (Test-Path -LiteralPath (Join-Path $sourcePath 'package.json') -PathType Leaf)) {
+        throw "兼容插件源码不完整：$sourcePath。"
+    }
+
+    New-Item -ItemType Directory -Path $CompatPluginDirectory -Force | Out-Null
+    Copy-Item -Path (Join-Path $sourcePath '*') -Destination $CompatPluginDirectory -Recurse -Force
+    Write-InitLog '已安装 Harness alpha.1 设置 API 兼容插件。'
 }
 
 # 备份已有同名 Agent 预设，并安装仓库中的 Codex 模式。
@@ -369,6 +384,31 @@ function Install-DesktopPlugins {
     }
 }
 
+# 确保兼容层先于会调用新设置 API 的第三方聚合包加载。
+function Set-SettingsCompatBundleOrder {
+    $manifestPath = Join-Path $ProfileDirectory 'package.json'
+    $profile = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    $bundlesProperty = $profile.dsh.profile.PSObject.Properties['bundles']
+    if ($null -eq $bundlesProperty) {
+        throw 'Profile manifest 缺少 dsh.profile.bundles。'
+    }
+
+    $bundles = [System.Collections.Generic.List[string]]::new()
+    foreach ($bundle in @($bundlesProperty.Value)) { $bundles.Add([string]$bundle) }
+    $compatIndex = $bundles.IndexOf($CompatPluginName)
+    $webAllIndex = $bundles.IndexOf('@linxin666/dsh-web-all')
+    if ($compatIndex -lt 0 -or $webAllIndex -lt 0) {
+        throw 'Profile Bundle 列表缺少兼容插件或 dsh-web-all。'
+    }
+    if ($compatIndex -gt $webAllIndex) {
+        $bundles.RemoveAt($compatIndex)
+        $bundles.Insert($webAllIndex, $CompatPluginName)
+        $profile.dsh.profile.bundles = @($bundles)
+        $profile | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $manifestPath -Encoding utf8
+    }
+    Write-InitLog '已确认设置兼容插件先于 Web UI 聚合包加载。'
+}
+
 # 验证关键文件均已落盘，避免仅凭命令退出状态判断初始化成功。
 function Test-Installation {
     $requiredPaths = @(
@@ -376,7 +416,10 @@ function Test-Installation {
         (Join-Path $DshHome 'skills/commit/SKILL.md'),
         (Join-Path $DshHome 'skills/gpt-image-generator/SKILL.md'),
         (Join-Path $AgentPresetsDirectory "$CodexPresetId/agent.cordis.yml"),
-        (Join-Path $AgentPresetsDirectory "$CodexPresetId/preset.yml")
+        (Join-Path $AgentPresetsDirectory "$CodexPresetId/preset.yml"),
+        (Join-Path $CompatPluginDirectory 'package.json'),
+        (Join-Path $CompatPluginDirectory 'index.js'),
+        (Join-Path $CompatPluginDirectory 'cordis.patch.yml')
     )
 
     foreach ($requiredPath in $requiredPaths) {
@@ -426,6 +469,11 @@ const { pathToFileURL } = require('node:url')
     $dependencyNames = @($profileDependencies.Value.PSObject.Properties.Name)
     $bundles = $profileSettings.Value.PSObject.Properties['bundles']
     $bundleNames = if ($null -ne $bundles) { @($bundles.Value) } else { @() }
+    $compatIndex = [array]::IndexOf($bundleNames, $CompatPluginName)
+    $webAllIndex = [array]::IndexOf($bundleNames, '@linxin666/dsh-web-all')
+    if ($compatIndex -lt 0 -or $webAllIndex -lt 0 -or $compatIndex -gt $webAllIndex) {
+        throw '验证失败，设置兼容插件必须位于 dsh-web-all 之前。'
+    }
     foreach ($plugin in $Plugins) {
         if ($plugin.Name -notin $dependencyNames) {
             throw "验证失败，Profile dependencies 缺少 $($plugin.Name)。"
@@ -475,10 +523,12 @@ function Start-Initialization {
         Receive-Source
         Install-AgentsFile
         Install-UserSkills
+        Install-SettingsCompatPlugin
         Install-AgentPresets
         Set-DefaultAgentPreset
         Add-MinimumReleaseAgeExcludes
         Install-DesktopPlugins
+        Set-SettingsCompatBundleOrder
         Test-Installation
         Write-InitLog '初始化完成。首次使用 gpt-image-generator 时，Skill 会自动检测并询问缺失配置。请完全退出并重新启动 DSH Desktop。'
     }

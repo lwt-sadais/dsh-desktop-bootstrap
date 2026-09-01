@@ -1,0 +1,4 @@
+# 在第三方 Web 插件挂载前补齐 Harness alpha.1 缺失的设置服务实例方法。
+- insert:
+    - id: settings-alpha1-compat
+      name: dsh-settings-alpha1-compat
