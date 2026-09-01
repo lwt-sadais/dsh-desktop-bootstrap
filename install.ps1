@@ -362,7 +362,7 @@ function Invoke-PluginOperation {
         }
     }
 
-    throw "Desktop Profile 插件$Label失败：$($Targets -join ', ')"
+    throw "Desktop Profile 插件${Label}失败：$($Targets -join ', ')"
 }
 
 # 先卸载所有已存在的目标或废弃插件，再按完整来源统一重新安装目标插件。
