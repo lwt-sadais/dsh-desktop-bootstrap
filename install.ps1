@@ -20,7 +20,7 @@ $Plugins = @(
     [pscustomobject]@{ Name = 'dsh-git-diff'; Source = 'github:lwt-sadais/dsh-git-diff#69c8458d3eefc507f4512983934cc046b4e736dd' },
     [pscustomobject]@{ Name = 'dsh-git-history'; Source = 'github:lwt-sadais/dsh-git-history#cf22d3e2c839d38f63064568021cdc2b854dd41d' },
     [pscustomobject]@{ Name = 'dsh-local-file-reference'; Source = 'github:lwt-sadais/dsh-local-file-reference#4ccc956cc14b1e2d4c19634287b52dcfc3a3c955' },
-    [pscustomobject]@{ Name = 'dsh-plan-review-card'; Source = 'github:lwt-sadais/dsh-plan-review-card#9ae19224dc1e9ab6f233aac917b7746240c2f0e2' },
+    [pscustomobject]@{ Name = 'dsh-plan-review-card'; Source = 'github:lwt-sadais/dsh-plan-review-card#43d8f2ddf55512f181c26a2e09fc63ece8c11377' },
     [pscustomobject]@{ Name = 'dsh-reasoning-efforts'; Source = 'github:lwt-sadais/dsh-reasoning-efforts#eb66af3df2c99e5d5014bcedd61abb7d7c61a7d3' }
 )
 $ObsoletePluginNames = @('@linxin666/dsh-web-ui-all')
@@ -224,6 +224,13 @@ function Read-Utf8Json {
     return Get-Content -LiteralPath $LiteralPath -Raw -Encoding UTF8 | ConvertFrom-Json
 }
 
+# 显式枚举对象属性名，兼容 Windows PowerShell 严格模式下不支持集合成员枚举的情况。
+function Get-ObjectPropertyNames {
+    param([Parameter(Mandatory)]$InputObject)
+
+    return @($InputObject.PSObject.Properties | ForEach-Object { $_.Name })
+}
+
 # 执行外部命令，同时实时显示并返回合并后的标准输出与错误输出。
 function Invoke-CapturedCommand {
     param(
@@ -327,15 +334,15 @@ function Approve-PendingBuildsExceptCpuFeatures {
     }
 }
 
-# 执行一次插件安装或更新；依赖构建被拦截时完成审批并仅重试原命令一次。
+# 执行一次插件卸载或安装；依赖构建被拦截时完成审批并仅重试原命令一次。
 function Invoke-PluginOperation {
     param(
-        [Parameter(Mandatory)][ValidateSet('add', 'update', 'remove')][string]$Action,
+        [Parameter(Mandatory)][ValidateSet('add', 'remove')][string]$Action,
         [Parameter(Mandatory)][string]$Label,
         [Parameter(Mandatory)][string[]]$Targets
     )
 
-    $arguments = @('plugin', $Action, '--profile', 'desktop') + $Targets
+    $arguments = @('plugin', '--profile', 'desktop', $Action) + $Targets
     Write-InitLog "正在$Label Desktop Profile 插件：$($Targets -join ', ')……"
     $result = Invoke-CapturedCommand -FilePath 'dsh' -ArgumentList $arguments
     if ($result.ExitCode -eq 0) {
@@ -358,7 +365,7 @@ function Invoke-PluginOperation {
     throw "Desktop Profile 插件$Label失败：$($Targets -join ', ')"
 }
 
-# 移除已被 0.3.9 聚合包替代的旧包，再按完整来源安装或更新目标插件。
+# 先卸载所有已存在的目标或废弃插件，再按完整来源统一重新安装目标插件。
 function Install-DesktopPlugins {
     $manifestPath = Join-Path $ProfileDirectory 'package.json'
     $dependencyNames = @()
@@ -366,29 +373,21 @@ function Install-DesktopPlugins {
         $manifest = Read-Utf8Json -LiteralPath $manifestPath
         $dependencies = $manifest.PSObject.Properties['dependencies']
         if ($null -ne $dependencies) {
-            $dependencyNames = @($dependencies.Value.PSObject.Properties.Name)
+            $dependencyNames = Get-ObjectPropertyNames -InputObject $dependencies.Value
         }
     }
 
-    $removeNames = @($ObsoletePluginNames | Where-Object { $_ -in $dependencyNames })
+    $managedPluginNames = @($Plugins | ForEach-Object { $_.Name }) + $ObsoletePluginNames
+    $removeNames = @($managedPluginNames | Where-Object { $_ -in $dependencyNames } | Select-Object -Unique)
     if ($removeNames.Count -gt 0) {
-        Invoke-PluginOperation -Action 'remove' -Label '移除旧版' -Targets $removeNames
+        Invoke-PluginOperation -Action 'remove' -Label '卸载现有' -Targets $removeNames
+    }
+    else {
+        Write-InitLog '当前没有已安装的目标或废弃插件需要卸载。'
     }
 
-    $installSources = @($Plugins | Where-Object { $_.Name -notin $dependencyNames } | ForEach-Object { $_.Source })
-    $updateNames = @($Plugins | Where-Object { $_.Name -in $dependencyNames } | ForEach-Object { $_.Name })
-    if ($installSources.Count -gt 0) {
-        Invoke-PluginOperation -Action 'add' -Label '安装' -Targets $installSources
-    }
-    else {
-        Write-InitLog '所有目标插件均已安装，跳过 plugin add。'
-    }
-    if ($updateNames.Count -gt 0) {
-        Invoke-PluginOperation -Action 'update' -Label '更新' -Targets $updateNames
-    }
-    else {
-        Write-InitLog '当前没有已安装插件需要更新。'
-    }
+    $installSources = @($Plugins | ForEach-Object { $_.Source })
+    Invoke-PluginOperation -Action 'add' -Label '安装' -Targets $installSources
 }
 
 # 确保兼容层先于会调用新设置 API 的第三方聚合包加载。
@@ -473,7 +472,7 @@ const { pathToFileURL } = require('node:url')
     if ($null -eq $profileDependencies -or $null -eq $profileSettings) {
         throw '验证失败，Desktop Profile manifest 缺少 dependencies 或 dsh.profile。'
     }
-    $dependencyNames = @($profileDependencies.Value.PSObject.Properties.Name)
+    $dependencyNames = Get-ObjectPropertyNames -InputObject $profileDependencies.Value
     $bundles = $profileSettings.Value.PSObject.Properties['bundles']
     $bundleNames = if ($null -ne $bundles) { @($bundles.Value) } else { @() }
     $compatIndex = [array]::IndexOf($bundleNames, $CompatPluginName)

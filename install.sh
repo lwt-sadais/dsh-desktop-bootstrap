@@ -33,7 +33,7 @@ readonly PLUGIN_SOURCES=(
   "github:lwt-sadais/dsh-git-diff#69c8458d3eefc507f4512983934cc046b4e736dd"
   "github:lwt-sadais/dsh-git-history#cf22d3e2c839d38f63064568021cdc2b854dd41d"
   "github:lwt-sadais/dsh-local-file-reference#4ccc956cc14b1e2d4c19634287b52dcfc3a3c955"
-  "github:lwt-sadais/dsh-plan-review-card#9ae19224dc1e9ab6f233aac917b7746240c2f0e2"
+  "github:lwt-sadais/dsh-plan-review-card#43d8f2ddf55512f181c26a2e09fc63ece8c11377"
   "github:lwt-sadais/dsh-reasoning-efforts#eb66af3df2c99e5d5014bcedd61abb7d7c61a7d3"
 )
 readonly OBSOLETE_PLUGIN_NAMES=(
@@ -255,7 +255,7 @@ approve_pending_builds_except_cpu_features() {
   (cd "${PROFILE_DIR}" && pnpm approve-builds --all)
 }
 
-# 执行一次插件安装或更新；依赖构建被拦截时完成审批并仅重试原命令一次。
+# 执行一次插件卸载或安装；依赖构建被拦截时完成审批并仅重试原命令一次。
 run_plugin_operation() {
   local action="$1"
   local label="$2"
@@ -265,7 +265,7 @@ run_plugin_operation() {
 
   log "正在${label} Desktop Profile 插件：$*……"
   : >"${output_file}"
-  dsh plugin "${action}" --profile desktop "$@" > >(tee "${output_file}") 2>&1
+  dsh plugin --profile desktop "${action}" "$@" > >(tee "${output_file}") 2>&1
   status=$?
   if [[ ${status} -eq 0 ]]; then
     log "已完成 Desktop Profile 插件${label}。"
@@ -275,7 +275,7 @@ run_plugin_operation() {
   if grep -qiE 'pnpm[[:space:]]+approve-builds|ERR_PNPM_IGNORED_BUILDS' "${output_file}"; then
     approve_pending_builds_except_cpu_features "${output_file}" || fail "Desktop Profile 插件依赖构建审批失败，请查看上方 pnpm 输出。"
     log "正在重试 Desktop Profile 插件${label}……"
-    dsh plugin "${action}" --profile desktop "$@" || fail "Desktop Profile 插件${label}重试失败。"
+    dsh plugin --profile desktop "${action}" "$@" || fail "Desktop Profile 插件${label}重试失败。"
     log "已完成 Desktop Profile 插件${label}。"
     return 0
   fi
@@ -283,61 +283,36 @@ run_plugin_operation() {
   fail "Desktop Profile 插件${label}失败，请根据上方错误处理后重试。"
 }
 
-# 移除已被 0.3.9 聚合包替代的旧包，再按完整来源安装或更新目标插件。
+# 先卸载所有已存在的目标或废弃插件，再按完整来源统一重新安装目标插件。
 install_plugins() {
   local manifest="${PROFILE_DIR}/package.json"
-  local installed_flags obsolete_flags index
-  local install_sources=()
-  local update_names=()
+  local managed_flags index
+  local managed_names=("${PLUGIN_NAMES[@]}" "${OBSOLETE_PLUGIN_NAMES[@]}")
   local remove_names=()
 
   [[ ${#PLUGIN_NAMES[@]} -eq ${#PLUGIN_SOURCES[@]} ]] || fail "插件包名与来源配置数量不一致。"
-  installed_flags="$(node -e '
+  managed_flags="$(node -e '
     const { readFileSync } = require("node:fs");
     let dependencies = {};
     try { dependencies = JSON.parse(readFileSync(process.argv[1], "utf8")).dependencies ?? {}; }
     catch (error) { if (error?.code !== "ENOENT") throw error; }
     for (const name of process.argv.slice(2)) console.log(Object.hasOwn(dependencies, name) ? "1" : "0");
-  ' "${manifest}" "${PLUGIN_NAMES[@]}")" || fail "读取 Desktop Profile 插件声明失败。"
-  obsolete_flags="$(node -e '
-    const { readFileSync } = require("node:fs");
-    let dependencies = {};
-    try { dependencies = JSON.parse(readFileSync(process.argv[1], "utf8")).dependencies ?? {}; }
-    catch (error) { if (error?.code !== "ENOENT") throw error; }
-    for (const name of process.argv.slice(2)) console.log(Object.hasOwn(dependencies, name) ? "1" : "0");
-  ' "${manifest}" "${OBSOLETE_PLUGIN_NAMES[@]}")" || fail "读取旧插件声明失败。"
+  ' "${manifest}" "${managed_names[@]}")" || fail "读取 Desktop Profile 插件声明失败。"
 
   index=0
   while IFS= read -r installed; do
-    [[ "${installed}" == "1" ]] && remove_names+=("${OBSOLETE_PLUGIN_NAMES[${index}]}")
+    [[ "${installed}" == "1" ]] && remove_names+=("${managed_names[${index}]}")
     index=$((index + 1))
-  done <<<"${obsolete_flags}"
-  [[ ${index} -eq ${#OBSOLETE_PLUGIN_NAMES[@]} ]] || fail "旧插件分类结果不完整。"
+  done <<<"${managed_flags}"
+  [[ ${index} -eq ${#managed_names[@]} ]] || fail "Desktop Profile 插件分类结果不完整。"
+
   if [[ ${#remove_names[@]} -gt 0 ]]; then
-    run_plugin_operation remove "移除旧版" "${remove_names[@]}"
+    run_plugin_operation remove "卸载现有" "${remove_names[@]}"
+  else
+    log "当前没有已安装的目标或废弃插件需要卸载。"
   fi
 
-  index=0
-  while IFS= read -r installed; do
-    if [[ "${installed}" == "1" ]]; then
-      update_names+=("${PLUGIN_NAMES[${index}]}")
-    else
-      install_sources+=("${PLUGIN_SOURCES[${index}]}")
-    fi
-    index=$((index + 1))
-  done <<<"${installed_flags}"
-  [[ ${index} -eq ${#PLUGIN_NAMES[@]} ]] || fail "Desktop Profile 插件分类结果不完整。"
-
-  if [[ ${#install_sources[@]} -gt 0 ]]; then
-    run_plugin_operation add "安装" "${install_sources[@]}"
-  else
-    log "所有目标插件均已安装，跳过 plugin add。"
-  fi
-  if [[ ${#update_names[@]} -gt 0 ]]; then
-    run_plugin_operation update "更新" "${update_names[@]}"
-  else
-    log "当前没有已安装插件需要更新。"
-  fi
+  run_plugin_operation add "安装" "${PLUGIN_SOURCES[@]}"
 }
 
 # 确保兼容层先于会调用新设置 API 的第三方聚合包加载。
