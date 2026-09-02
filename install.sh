@@ -29,7 +29,7 @@ readonly PLUGIN_SOURCES=(
   "@linxin666/dsh-web-all@0.3.9"
   "${BETTER_SIDEBAR_FORK}"
   "github:lwt-sadais/dsh-at-file#6dbc6209a881c97ae094081e5fb8899a9f4b1b05"
-  "github:lwt-sadais/dsh-archived-sessions#f65469cad684c674d56c6646183149dc2f568654"
+  "github:lwt-sadais/dsh-archived-sessions#0f75caef3d20ac02b2f7588c2524d94497036f9e"
   "github:lwt-sadais/dsh-git-diff#69c8458d3eefc507f4512983934cc046b4e736dd"
   "github:lwt-sadais/dsh-git-history#cf22d3e2c839d38f63064568021cdc2b854dd41d"
   "github:lwt-sadais/dsh-local-file-reference#4ccc956cc14b1e2d4c19634287b52dcfc3a3c955"
