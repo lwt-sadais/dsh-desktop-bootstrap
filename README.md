@@ -165,7 +165,7 @@ agent-presets:
 mkdir -p "$HOME/.dsh/plugins/dsh-settings-alpha1-compat"
 cp -R plugins/dsh-settings-alpha1-compat/. "$HOME/.dsh/plugins/dsh-settings-alpha1-compat/"
 dsh plugin remove --profile desktop @linxin666/dsh-web-ui-all
-dsh plugin add --profile desktop link:$HOME/.dsh/plugins/dsh-settings-alpha1-compat @linxin666/dsh-web-all@0.3.9 github:lwt-sadais/DSH-better-sidebar#ed28df8d66f1b9f9871fb358c6616289d23358f3 github:lwt-sadais/dsh-at-file#6dbc6209a881c97ae094081e5fb8899a9f4b1b05 github:lwt-sadais/dsh-archived-sessions#0f75caef3d20ac02b2f7588c2524d94497036f9e github:lwt-sadais/dsh-git-diff#69c8458d3eefc507f4512983934cc046b4e736dd github:lwt-sadais/dsh-git-history#cf22d3e2c839d38f63064568021cdc2b854dd41d github:lwt-sadais/dsh-local-file-reference#4ccc956cc14b1e2d4c19634287b52dcfc3a3c955 github:lwt-sadais/dsh-plan-review-card#43d8f2ddf55512f181c26a2e09fc63ece8c11377 github:lwt-sadais/dsh-reasoning-efforts#eb66af3df2c99e5d5014bcedd61abb7d7c61a7d3
+dsh plugin add --profile desktop link:$HOME/.dsh/plugins/dsh-settings-alpha1-compat @linxin666/dsh-web-all@0.3.9 github:lwt-sadais/DSH-better-sidebar#a4f184bdb269c63457bc6d373495da0ee90f02c3 github:lwt-sadais/dsh-at-file#6dbc6209a881c97ae094081e5fb8899a9f4b1b05 github:lwt-sadais/dsh-archived-sessions#0f75caef3d20ac02b2f7588c2524d94497036f9e github:lwt-sadais/dsh-git-diff#69c8458d3eefc507f4512983934cc046b4e736dd github:lwt-sadais/dsh-git-history#cf22d3e2c839d38f63064568021cdc2b854dd41d github:lwt-sadais/dsh-local-file-reference#4ccc956cc14b1e2d4c19634287b52dcfc3a3c955 github:lwt-sadais/dsh-plan-review-card#43d8f2ddf55512f181c26a2e09fc63ece8c11377 github:lwt-sadais/dsh-reasoning-efforts#eb66af3df2c99e5d5014bcedd61abb7d7c61a7d3
 ```
 
 > DSH Desktop 会为每次插件变更创建恢复事务。请等待上一条命令成功并完成恢复验证后再执行下一条；全部完成后完全退出并重新启动 DSH Desktop。
@@ -176,7 +176,7 @@ dsh plugin add --profile desktop link:$HOME/.dsh/plugins/dsh-settings-alpha1-com
 | --- | --- | --- | --- |
 | `dsh-settings-alpha1-compat` | `0.1.2-alpha.1` | 本仓库 `plugins/dsh-settings-alpha1-compat` | 为当前 Host 补齐 alpha.2 才加入的设置实例方法；新 Host 已原生提供时自动跳过 |
 | `@linxin666/dsh-web-all` | `0.3.9` | [`zhu1090093659/dsh-web`](https://github.com/zhu1090093659/dsh-web) | alpha.1 Web UI 聚合包；安装 18 个固定版本功能依赖，无需旧版插件管理器源码补丁 |
-| `dsh-better-sidebar` | `0.1.2-alpha.1` | [`lwt-sadais/DSH-better-sidebar`](https://github.com/lwt-sadais/DSH-better-sidebar) | 顶层 Fork；移除旧 Client Runtime，适配 Remote Gateway 与 token 认证，并保留重复挂载保护 |
+| `dsh-better-sidebar` | `0.1.2-alpha.1` | [`lwt-sadais/DSH-better-sidebar`](https://github.com/lwt-sadais/DSH-better-sidebar) | 顶层 Fork；移除旧 Client Runtime，适配 Remote Gateway 与 token 认证，保留重复挂载保护，文件编辑器内置 Ctrl/Cmd+F 查找面板 |
 | `dsh-at-file` | `0.1.2-alpha.1` | [`lwt-sadais/dsh-at-file`](https://github.com/lwt-sadais/dsh-at-file) | Fork；迁移到 Client Store、Session Controller 与 alpha.1 Remote API |
 | `@muwinds/dsh-archived-sessions` | `0.1.2-alpha.1` | [`lwt-sadais/dsh-archived-sessions`](https://github.com/lwt-sadais/dsh-archived-sessions) | Fork；归档会话管理，不创建上游 PR |
 | `dsh-git-diff` | `0.1.2-alpha.1` | [`lwt-sadais/dsh-git-diff`](https://github.com/lwt-sadais/dsh-git-diff) | Git Diff 审查；移除已删除的旧 Client Runtime |
