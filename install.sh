@@ -30,7 +30,7 @@ readonly PLUGIN_SOURCES=(
   "${BETTER_SIDEBAR_FORK}"
   "github:lwt-sadais/dsh-at-file#6dbc6209a881c97ae094081e5fb8899a9f4b1b05"
   "github:lwt-sadais/dsh-archived-sessions#0f75caef3d20ac02b2f7588c2524d94497036f9e"
-  "github:lwt-sadais/dsh-git-diff#69c8458d3eefc507f4512983934cc046b4e736dd"
+  "github:lwt-sadais/dsh-git-diff#aa86ca609d75f6ca9a3e5a327f79b500e7400c5e"
   "github:lwt-sadais/dsh-git-history#cf22d3e2c839d38f63064568021cdc2b854dd41d"
   "github:lwt-sadais/dsh-local-file-reference#4ccc956cc14b1e2d4c19634287b52dcfc3a3c955"
   "github:lwt-sadais/dsh-plan-review-card#43d8f2ddf55512f181c26a2e09fc63ece8c11377"
