@@ -32,7 +32,7 @@ readonly PLUGIN_SOURCES=(
   "github:lwt-sadais/dsh-archived-sessions#0f75caef3d20ac02b2f7588c2524d94497036f9e"
   "github:lwt-sadais/dsh-git-diff#aa86ca609d75f6ca9a3e5a327f79b500e7400c5e"
   "github:lwt-sadais/dsh-git-history#cf22d3e2c839d38f63064568021cdc2b854dd41d"
-  "github:lwt-sadais/dsh-local-file-reference#4ccc956cc14b1e2d4c19634287b52dcfc3a3c955"
+  "github:lwt-sadais/dsh-local-file-reference#4dba61891126af8ae71cd327a8f9b72124450e93"
   "github:lwt-sadais/dsh-plan-review-card#43d8f2ddf55512f181c26a2e09fc63ece8c11377"
   "github:lwt-sadais/dsh-reasoning-efforts#eb66af3df2c99e5d5014bcedd61abb7d7c61a7d3"
 )

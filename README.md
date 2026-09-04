@@ -165,7 +165,7 @@ agent-presets:
 mkdir -p "$HOME/.dsh/plugins/dsh-settings-alpha1-compat"
 cp -R plugins/dsh-settings-alpha1-compat/. "$HOME/.dsh/plugins/dsh-settings-alpha1-compat/"
 dsh plugin remove --profile desktop @linxin666/dsh-web-ui-all
-dsh plugin add --profile desktop link:$HOME/.dsh/plugins/dsh-settings-alpha1-compat @linxin666/dsh-web-all@0.3.9 github:lwt-sadais/DSH-better-sidebar#a4f184bdb269c63457bc6d373495da0ee90f02c3 github:lwt-sadais/dsh-at-file#6dbc6209a881c97ae094081e5fb8899a9f4b1b05 github:lwt-sadais/dsh-archived-sessions#0f75caef3d20ac02b2f7588c2524d94497036f9e github:lwt-sadais/dsh-git-diff#aa86ca609d75f6ca9a3e5a327f79b500e7400c5e github:lwt-sadais/dsh-git-history#cf22d3e2c839d38f63064568021cdc2b854dd41d github:lwt-sadais/dsh-local-file-reference#4ccc956cc14b1e2d4c19634287b52dcfc3a3c955 github:lwt-sadais/dsh-plan-review-card#43d8f2ddf55512f181c26a2e09fc63ece8c11377 github:lwt-sadais/dsh-reasoning-efforts#eb66af3df2c99e5d5014bcedd61abb7d7c61a7d3
+dsh plugin add --profile desktop link:$HOME/.dsh/plugins/dsh-settings-alpha1-compat @linxin666/dsh-web-all@0.3.9 github:lwt-sadais/DSH-better-sidebar#a4f184bdb269c63457bc6d373495da0ee90f02c3 github:lwt-sadais/dsh-at-file#6dbc6209a881c97ae094081e5fb8899a9f4b1b05 github:lwt-sadais/dsh-archived-sessions#0f75caef3d20ac02b2f7588c2524d94497036f9e github:lwt-sadais/dsh-git-diff#aa86ca609d75f6ca9a3e5a327f79b500e7400c5e github:lwt-sadais/dsh-git-history#cf22d3e2c839d38f63064568021cdc2b854dd41d github:lwt-sadais/dsh-local-file-reference#4dba61891126af8ae71cd327a8f9b72124450e93 github:lwt-sadais/dsh-plan-review-card#43d8f2ddf55512f181c26a2e09fc63ece8c11377 github:lwt-sadais/dsh-reasoning-efforts#eb66af3df2c99e5d5014bcedd61abb7d7c61a7d3
 ```
 
 > DSH Desktop 会为每次插件变更创建恢复事务。请等待上一条命令成功并完成恢复验证后再执行下一条；全部完成后完全退出并重新启动 DSH Desktop。
@@ -181,7 +181,7 @@ dsh plugin add --profile desktop link:$HOME/.dsh/plugins/dsh-settings-alpha1-com
 | `@muwinds/dsh-archived-sessions` | `0.1.2-alpha.1` | [`lwt-sadais/dsh-archived-sessions`](https://github.com/lwt-sadais/dsh-archived-sessions) | Fork；归档会话管理，不创建上游 PR |
 | `dsh-git-diff` | `0.1.2-rc.1` | [`lwt-sadais/dsh-git-diff`](https://github.com/lwt-sadais/dsh-git-diff) | Git Diff 审查；适配 rc.1 槽位 Props 并向下兼容 alpha.x/rc.7 宿主 |
 | `dsh-git-history` | `0.1.2-alpha.1` | [`lwt-sadais/dsh-git-history`](https://github.com/lwt-sadais/dsh-git-history) | Git 历史与远端同步；移除已删除的旧 Client Runtime |
-| `dsh-local-file-reference` | `0.1.2-alpha.1` | [`lwt-sadais/dsh-local-file-reference`](https://github.com/lwt-sadais/dsh-local-file-reference) | 本地文件路径引用；迁移到 `uiSession` 当前绑定 API |
+| `dsh-local-file-reference` | `0.1.2-rc.1` | [`lwt-sadais/dsh-local-file-reference`](https://github.com/lwt-sadais/dsh-local-file-reference) | 本地文件路径引用；适配 rc.1 Lexical 输入框（粘贴/拖拽/删除），向下兼容 alpha.1 textarea 输入框 |
 | `dsh-plan-review-card` | `0.1.2-alpha.1` | [`lwt-sadais/dsh-plan-review-card`](https://github.com/lwt-sadais/dsh-plan-review-card) | 结构化审查卡片；点击卡片时自动展开统一侧边栏，侧边栏不可用时回退到页面根层 Portal 阅读栏 |
 | `dsh-reasoning-efforts` | `0.1.2-alpha.1` | [`lwt-sadais/dsh-reasoning-efforts`](https://github.com/lwt-sadais/dsh-reasoning-efforts) | 按模型原子配置 Provider 推理等级与输入能力；使用 alpha.1 `ctx.remote.settings` 读取和保存设置 |
 
