@@ -35,7 +35,7 @@
 
 ## 一键初始化（推荐）
 
-脚本会下载本仓库的默认分支，备份并安装全局 `AGENTS.md`、合并用户级 Skills、安装用户级 Codex 模式 Agent 预设、将其设为新会话的默认模式，并安装本文列出的 Desktop Profile 插件。安装过程不会创建或覆盖任何 Skill 的私密 `.env`。
+脚本会下载本仓库的默认分支，安装全局 `AGENTS.md`（已存在时直接覆盖，不保留备份）、合并用户级 Skills、安装用户级 Codex 模式 Agent 预设、将其设为新会话的默认模式，并安装本文列出的 Desktop Profile 插件。安装过程不会创建或覆盖任何 Skill 的私密 `.env`。
 
 ### 第一步：打开 DSH Desktop 专用终端
 
@@ -68,9 +68,9 @@ irm "https://raw.githubusercontent.com/lwt-sadais/dsh-desktop-bootstrap/main/ins
 ### 脚本行为
 
 - 脚本首先检查当前终端能否执行 `dsh`；如果不能，会提示回到 DSH Desktop 应用内打开专用终端。
-- 如果 `~/.dsh/AGENTS.md` 已存在，会先按时间戳备份为 `AGENTS.md.backup.<时间戳>`。
+- `~/.dsh/AGENTS.md` 已存在时直接覆盖安装，不保留备份；如需保留自定义内容请自行提前备份。
 - Skills 采用合并安装，不会删除用户已有的其他 Skill，也不会创建或覆盖私密 `.env`。
-- Codex 模式安装到 `~/.dsh/.agent-presets/codex-mode`；若已存在同名文件或目录，会先整体备份为 `codex-mode.backup.<时间戳>`，再安装仓库版本。
+- Codex 模式安装到 `~/.dsh/.agent-presets/codex-mode`；已存在同名文件或目录时整体删除后安装仓库版本，不保留备份。
 - 脚本会保留 `~/.dsh/settings.yaml` 中的其他设置，只写入 `agent-presets.default: codex-mode`；此设置影响此后新建的会话，不切换已运行会话的模式。
 - 首次请求生成图片时，`gpt-image-generator` 会运行配置检查，并通过交互提问仅收集缺失配置；已有配置不会要求重复输入。
 - 脚本会先批量卸载 Desktop Profile 中已存在的目标插件及废弃插件，再按完整来源通过一条 `dsh plugin add` 命令统一重新安装。该逻辑面向 DSH Desktop 内置 Harness `0.1.2-alpha.1`；其中 `dsh-plan-review-card` 会让主 Agent 通过 `present_result_card` 输出可审查的结构化卡片，子 Agent 不触发人工审查；点击卡片会自动展开统一侧边栏并展示完整内容，同时保持会话和输入框可操作，并支持摘要审查、批准、拒绝、取消、批注调整、复制和 Markdown 导出。

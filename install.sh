@@ -124,16 +124,9 @@ download_source() {
   [[ -d "${SOURCE_DIR}" ]] || fail "下载内容中未找到预期的仓库目录。"
 }
 
-# 备份已有全局指令文件，并安装仓库中的 AGENTS.md。
+# 安装仓库中的全局指令文件 AGENTS.md。
 install_agents() {
-  local backup_path
   mkdir -p "${DSH_HOME}" || fail "无法创建 ${DSH_HOME}。"
-
-  if [[ -e "${DSH_HOME}/AGENTS.md" || -L "${DSH_HOME}/AGENTS.md" ]]; then
-    backup_path="${DSH_HOME}/AGENTS.md.backup.$(date +%Y%m%d%H%M%S)"
-    cp -L "${DSH_HOME}/AGENTS.md" "${backup_path}" || fail "备份现有 AGENTS.md 失败。"
-    log "已备份现有 AGENTS.md：${backup_path}"
-  fi
 
   cp "${SOURCE_DIR}/AGENTS.md" "${DSH_HOME}/AGENTS.md" || fail "安装 AGENTS.md 失败。"
   chmod 0644 "${DSH_HOME}/AGENTS.md" || fail "设置 AGENTS.md 权限失败。"
@@ -157,21 +150,15 @@ install_settings_compat_plugin() {
   log "已安装 Harness alpha.1 设置 API 兼容插件。"
 }
 
-# 备份已有同名 Agent 预设，并安装仓库中的 Codex 模式。
+# 安装仓库中的 Codex 模式 Agent 预设。
 install_agent_presets() {
   local source_path="${SOURCE_DIR}/agent-presets/${CODEX_PRESET_ID}"
   local target_path="${AGENT_PRESETS_DIR}/${CODEX_PRESET_ID}"
-  local backup_path
 
   [[ -f "${source_path}/agent.cordis.yml" && -f "${source_path}/preset.yml" ]] || fail "初始化资源中缺少 Codex 模式预设。"
   mkdir -p "${AGENT_PRESETS_DIR}" || fail "无法创建 Agent 预设目录。"
 
-  if [[ -e "${target_path}" || -L "${target_path}" ]]; then
-    backup_path="${target_path}.backup.$(date +%Y%m%d%H%M%S)"
-    cp -R -L "${target_path}" "${backup_path}" || fail "备份现有 Codex 模式失败。"
-    log "已备份现有 Codex 模式：${backup_path}"
-    rm -rf "${target_path}" || fail "清理现有 Codex 模式失败。"
-  fi
+  rm -rf "${target_path}" || fail "清理现有 Codex 模式失败。"
 
   cp -R "${source_path}" "${target_path}" || fail "安装 Codex 模式失败。"
   chmod -R u+rwX,go-rwx "${target_path}" || fail "设置 Codex 模式权限失败。"

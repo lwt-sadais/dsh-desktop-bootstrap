@@ -101,17 +101,10 @@ function Receive-Source {
     }
 }
 
-# 备份已有全局指令文件，并安装仓库中的 AGENTS.md。
+# 安装仓库中的全局指令文件 AGENTS.md。
 function Install-AgentsFile {
     New-Item -ItemType Directory -Path $DshHome -Force | Out-Null
     $targetPath = Join-Path $DshHome 'AGENTS.md'
-
-    if (Test-Path -LiteralPath $targetPath) {
-        $timestamp = Get-Date -Format 'yyyyMMddHHmmss'
-        $backupPath = "$targetPath.backup.$timestamp"
-        Copy-Item -LiteralPath $targetPath -Destination $backupPath -Force
-        Write-InitLog "已备份现有 AGENTS.md：$backupPath"
-    }
 
     Copy-Item -LiteralPath (Join-Path $script:SourceDirectory 'AGENTS.md') -Destination $targetPath -Force
     Write-InitLog '已安装全局 AGENTS.md。'
@@ -138,7 +131,7 @@ function Install-SettingsCompatPlugin {
     Write-InitLog '已安装 Harness alpha.1 设置 API 兼容插件。'
 }
 
-# 备份已有同名 Agent 预设，并安装仓库中的 Codex 模式。
+# 安装仓库中的 Codex 模式 Agent 预设。
 function Install-AgentPresets {
     $sourcePath = Join-Path $script:SourceDirectory "agent-presets/$CodexPresetId"
     $targetPath = Join-Path $AgentPresetsDirectory $CodexPresetId
@@ -151,10 +144,6 @@ function Install-AgentPresets {
     New-Item -ItemType Directory -Path $AgentPresetsDirectory -Force | Out-Null
 
     if (Test-Path -LiteralPath $targetPath) {
-        $timestamp = Get-Date -Format 'yyyyMMddHHmmss'
-        $backupPath = "$targetPath.backup.$timestamp"
-        Copy-Item -LiteralPath $targetPath -Destination $backupPath -Recurse -Force
-        Write-InitLog "已备份现有 Codex 模式：$backupPath"
         Remove-Item -LiteralPath $targetPath -Recurse -Force
     }
 
