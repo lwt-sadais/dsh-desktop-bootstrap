@@ -26,6 +26,8 @@
             └── generate-image.mjs
 ```
 
+> 本分支 `adapt-desktop-2.0.10` 面向 DSH Desktop 2.0.10（内置 Harness 0.1.5-rc.2）；`main` 分支保留面向旧版 Desktop（2.0.5 / 0.1.2-rc.1）的脚本与插件钉版。合并回 `main` 的时机需注意旧版兼容性（如 better-sidebar 0.19.1 不兼容 0.1.2-rc.1 宿主）。
+
 ## 前置条件
 
 - 已安装并启动 DSH Desktop。
@@ -35,7 +37,7 @@
 
 ## 一键初始化（推荐）
 
-脚本会下载本仓库的默认分支，安装全局 `AGENTS.md`（已存在时直接覆盖，不保留备份）、合并用户级 Skills、安装用户级 Codex 模式 Agent 预设、将其设为新会话的默认模式，并安装本文列出的 Desktop Profile 插件。安装过程不会创建或覆盖任何 Skill 的私密 `.env`。
+脚本会下载本仓库当前分支（脚本内置 `SOURCE_REF`），安装全局 `AGENTS.md`（已存在时直接覆盖，不保留备份）、合并用户级 Skills、安装用户级 Codex 模式 Agent 预设、将其设为新会话的默认模式，并安装本文列出的 Desktop Profile 插件。安装过程不会创建或覆盖任何 Skill 的私密 `.env`。
 
 ### 第一步：打开 DSH Desktop 专用终端
 
@@ -51,18 +53,18 @@ dsh --dump-config
 
 ### macOS
 
-在 DSH Desktop 专用终端中执行：
+在 DSH Desktop 专用终端中执行（分支阶段示例，合并回 main 后把 URL 中分支名换回 `main`）：
 
 ```bash
-curl -fsSL "https://raw.githubusercontent.com/lwt-sadais/dsh-desktop-bootstrap/main/install.sh?t=$(date +%s)" | bash
+curl -fsSL "https://raw.githubusercontent.com/lwt-sadais/dsh-desktop-bootstrap/adapt-desktop-2.0.10/install.sh?t=$(date +%s)" | bash
 ```
 
 ### Windows
 
-在 DSH Desktop 专用 PowerShell 中执行：
+在 DSH Desktop 专用 PowerShell 中执行（分支阶段示例，合并回 main 后把 URL 中分支名换回 `main`）：
 
 ```powershell
-irm "https://raw.githubusercontent.com/lwt-sadais/dsh-desktop-bootstrap/main/install.ps1?t=$(Get-Date -Format yyyyMMddHHmmss)" | iex
+irm "https://raw.githubusercontent.com/lwt-sadais/dsh-desktop-bootstrap/adapt-desktop-2.0.10/install.ps1?t=$(Get-Date -Format yyyyMMddHHmmss)" | iex
 ```
 
 ### 脚本行为
@@ -73,12 +75,11 @@ irm "https://raw.githubusercontent.com/lwt-sadais/dsh-desktop-bootstrap/main/ins
 - Codex 模式安装到 `~/.dsh/.agent-presets/codex-mode`；已存在同名文件或目录时整体删除后安装仓库版本，不保留备份。
 - 脚本会保留 `~/.dsh/settings.yaml` 中的其他设置，只写入 `agent-presets.default: codex-mode`；此设置影响此后新建的会话，不切换已运行会话的模式。
 - 首次请求生成图片时，`gpt-image-generator` 会运行配置检查，并通过交互提问仅收集缺失配置；已有配置不会要求重复输入。
-- 脚本会先批量卸载 Desktop Profile 中已存在的目标插件及废弃插件，再按完整来源通过一条 `dsh plugin add` 命令统一重新安装。该逻辑面向 DSH Desktop 内置 Harness `0.1.2-alpha.1`；其中 `dsh-plan-review-card` 会让主 Agent 通过 `present_result_card` 输出可审查的结构化卡片，子 Agent 不触发人工审查；点击卡片会自动展开统一侧边栏并展示完整内容，同时保持会话和输入框可操作，并支持摘要审查、批准、拒绝、取消、批注调整、复制和 Markdown 导出。
-- 脚本安装 `@linxin666/dsh-web-all@0.3.9` 作为 Web UI 聚合包，并先挂载仓库内置的 `dsh-settings-alpha1-compat`，为 Desktop 当前内置 Harness `0.1.2-alpha.1` 补齐第三方插件使用的 `settings.installSection` API；该兼容层在未来 Host 原生提供方法时自动跳过。脚本同时把 [`lwt-sadais/DSH-better-sidebar`](https://github.com/lwt-sadais/DSH-better-sidebar) 的固定适配提交作为同名顶层插件。该提交已包含通过验证的构建产物，不依赖已下架的 alpha.1 开发包执行现场构建；Fork 自带聚合重复挂载保护，因此运行时仍只有一个侧边栏实例。
-- DSH 的 pnpm 默认拒绝发布不足 24 小时的依赖。脚本会保留用户已有策略，仅将 Web UI 0.3.9 聚合包及其 17 个精确 `@linxin666/*@0.3.9` 依赖合并到 Desktop Profile 的 `minimumReleaseAgeExclude`；不会使用通配符、关闭 `minimumReleaseAge`，也不会通过 `--trust-lockfile` 跳过锁文件校验。
-- 脚本同时安装上游原版 `dsh-free-search@0.4.24`，为内置 `web_search` 提供多引擎免费搜索 provider（DuckDuckGo、Bing、SearXNG 等，无需 API key），注册进 Harness `ctx.web` seam，与官方 provider 共存；其网页设置页依赖 `dsh-settings-alpha1-compat` 补齐的 settings API，作者未在 `0.1.2-alpha.1` 上验证该插件。
-- 如果 pnpm 拦截依赖构建脚本，脚本会先执行 `pnpm approve-builds !cpu-features`，明确拒绝 SSH 的可选原生加速依赖 `cpu-features`，避免没有 C++ 编译器的 Windows 电脑安装失败。
-- 排除 `cpu-features` 后，脚本会执行 `pnpm approve-builds --all` 批准其余全部待审批依赖构建脚本，然后仅重试失败的卸载或安装操作一次。
+- 脚本会先批量卸载 Desktop Profile 中已存在的目标插件及废弃插件（含历史遗留的 `dsh-settings-alpha1-compat` 与 `dsh-at-file`），再按完整来源通过一条 `dsh plugin add` 命令统一重新安装。该逻辑面向 DSH Desktop 内置 Harness `0.1.5-rc.2`（Desktop 2.0.10）；其中 `dsh-plan-review-card` 会让主 Agent 通过 `present_result_card` 输出可审查的结构化卡片，子 Agent 不触发人工审查；点击卡片会自动展开统一侧边栏并展示完整内容，同时保持会话和输入框可操作，并支持摘要审查、批准、拒绝、取消、批注调整、复制和 Markdown 导出。
+- 脚本安装 `@linxin666/dsh-web-all@0.3.22` 作为 Web UI 聚合包，并把上游 [`omdsh-dev/DSH-better-sidebar`](https://github.com/omdsh-dev/DSH-better-sidebar) 的 `v0.19.1`（已在 0.1.5-rc.2 验证、改用原生右侧栏 API）作为同名顶层插件；Fork 自带聚合重复挂载保护，因此运行时仍只有一个侧边栏实例。`settings.installSection` 自 Harness `0.1.2-rc.1` 起已原生提供，`dsh-settings-alpha1-compat` 兼容层已随本分支移除；`dsh-at-file` 的 @ 文件引用功能已由官方 `ui-reference` 原生覆盖，同样移除。
+- Desktop 2.0.x 已移除 pnpm 的 `minimumReleaseAgeExclude` 机制（桌面在 pnpm 边界统一传 `--config.minimumReleaseAge=0`），脚本不再写入任何发布时间豁免。
+- 脚本同时安装上游原版 `dsh-free-search@0.4.28`，为内置 `web_search` 提供多引擎免费搜索 provider（DuckDuckGo、Bing、SearXNG 等，无需 API key），注册进 Harness `ctx.web` seam，与官方 provider 共存；0.4.28 修复了在 0.1.5-rc.2 上导致官方 `/` 指令菜单失效的问题。
+- 如果 pnpm 拦截依赖构建脚本，脚本会解析提示的依赖键，把白名单合并写入 Desktop Profile 的 `pnpm-workspace.yaml` `allowBuilds`（可选原生加速依赖 `cpu-features` 不写入名单，保持被拒，避免没有 C++ 编译器的 Windows 电脑安装失败），然后仅重试失败的卸载或安装操作一次。
 - 下载产生的临时文件会在结束时自动清理；任一关键步骤失败时脚本返回非零退出状态。
 - 初始化完成后请完全退出并重新启动 DSH Desktop，使全局指令、Skills、Agent 预设与插件重新加载。
 
@@ -160,13 +161,11 @@ agent-presets:
 
 ## 五、安装 Desktop Profile 插件
 
-以下插件已按 DSH Desktop 内置 Harness `0.1.2-alpha.1` 适配，统一安装到 `desktop` Profile。安装脚本还会把仓库中的 `plugins/dsh-settings-alpha1-compat` 复制到 `~/.dsh/plugins`，再以本地链接形式安装并排在 Web UI 聚合包之前。若旧 Profile 仍声明 `@linxin666/dsh-web-ui-all`，请先移除，再安装新的聚合包：
+以下插件已按 DSH Desktop 内置 Harness `0.1.5-rc.2`（Desktop 2.0.10）适配，统一安装到 `desktop` Profile。`settings.installSection` 自 Harness `0.1.2-rc.1` 起由官方原生提供，@ 文件引用由官方 `ui-reference` 原生提供，均不再需要兼容层或第三方替代插件；若旧 Profile 仍声明 `@linxin666/dsh-web-ui-all`、`dsh-settings-alpha1-compat` 或 `dsh-at-file`，请先移除，再安装新的插件集：
 
 ```bash
-mkdir -p "$HOME/.dsh/plugins/dsh-settings-alpha1-compat"
-cp -R plugins/dsh-settings-alpha1-compat/. "$HOME/.dsh/plugins/dsh-settings-alpha1-compat/"
-dsh plugin remove --profile desktop @linxin666/dsh-web-ui-all
-dsh plugin add --profile desktop link:$HOME/.dsh/plugins/dsh-settings-alpha1-compat @linxin666/dsh-web-all@0.3.9 github:lwt-sadais/DSH-better-sidebar#a4f184bdb269c63457bc6d373495da0ee90f02c3 github:lwt-sadais/dsh-at-file#6dbc6209a881c97ae094081e5fb8899a9f4b1b05 github:lwt-sadais/dsh-archived-sessions#0f75caef3d20ac02b2f7588c2524d94497036f9e github:lwt-sadais/dsh-git-diff#aa86ca609d75f6ca9a3e5a327f79b500e7400c5e github:lwt-sadais/dsh-git-history#c73206506e526cfa872131c7065f7a964961adb9 github:lwt-sadais/dsh-local-file-reference#4dba61891126af8ae71cd327a8f9b72124450e93 github:lwt-sadais/dsh-plan-review-card#0fdb6a94e2f06fba522432d55e12426e5daff80d github:lwt-sadais/dsh-reasoning-efforts#eb66af3df2c99e5d5014bcedd61abb7d7c61a7d3 dsh-free-search@0.4.24
+dsh plugin remove --profile desktop @linxin666/dsh-web-ui-all dsh-settings-alpha1-compat dsh-at-file
+dsh plugin add --profile desktop github:lwt-sadais/dsh-git-diff#3d955d2ab876d68faa1fa1a58a54462b4dde1465 github:lwt-sadais/dsh-git-history#31617eeb709a25e53c52928c4a5f2f14179d8247 github:lwt-sadais/dsh-local-file-reference#4dba61891126af8ae71cd327a8f9b72124450e93 github:lwt-sadais/dsh-plan-review-card#07c3fa29e3b33272930f1fb9776469cf497df81e github:lwt-sadais/dsh-reasoning-efforts#9332e2365d6ecccf33e47f87f345c56b12b92b81 github:omdsh-dev/DSH-better-sidebar#8753096a583ff2891d57a0074f1ac71cd5c6003e github:MuWinds/dsh-archived-sessions#5654381f0f54a4ada786bde569378235e2df01bf @linxin666/dsh-web-all@0.3.22 dsh-free-search@0.4.28
 ```
 
 > DSH Desktop 会为每次插件变更创建恢复事务。请等待上一条命令成功并完成恢复验证后再执行下一条；全部完成后完全退出并重新启动 DSH Desktop。
@@ -175,17 +174,15 @@ dsh plugin add --profile desktop link:$HOME/.dsh/plugins/dsh-settings-alpha1-com
 
 | 当前安装项 | 适配基线 | GitHub 仓库 | 说明 |
 | --- | --- | --- | --- |
-| `dsh-settings-alpha1-compat` | `0.1.2-alpha.1` | 本仓库 `plugins/dsh-settings-alpha1-compat` | 为当前 Host 补齐 alpha.2 才加入的设置实例方法；新 Host 已原生提供时自动跳过 |
-| `@linxin666/dsh-web-all` | `0.3.9` | [`zhu1090093659/dsh-web`](https://github.com/zhu1090093659/dsh-web) | alpha.1 Web UI 聚合包；安装 18 个固定版本功能依赖，无需旧版插件管理器源码补丁 |
-| `dsh-better-sidebar` | `0.1.2-alpha.1` | [`lwt-sadais/DSH-better-sidebar`](https://github.com/lwt-sadais/DSH-better-sidebar) | 顶层 Fork；移除旧 Client Runtime，适配 Remote Gateway 与 token 认证，保留重复挂载保护，文件编辑器内置 Ctrl/Cmd+F 查找面板 |
-| `dsh-at-file` | `0.1.2-alpha.1` | [`lwt-sadais/dsh-at-file`](https://github.com/lwt-sadais/dsh-at-file) | Fork；迁移到 Client Store、Session Controller 与 alpha.1 Remote API |
-| `@muwinds/dsh-archived-sessions` | `0.1.2-alpha.1` | [`lwt-sadais/dsh-archived-sessions`](https://github.com/lwt-sadais/dsh-archived-sessions) | Fork；归档会话管理，不创建上游 PR |
-| `dsh-git-diff` | `0.1.2-rc.1` | [`lwt-sadais/dsh-git-diff`](https://github.com/lwt-sadais/dsh-git-diff) | Git Diff 审查；适配 rc.1 槽位 Props 并向下兼容 alpha.x/rc.7 宿主 |
-| `dsh-git-history` | `0.1.2-alpha.1` | [`lwt-sadais/dsh-git-history`](https://github.com/lwt-sadais/dsh-git-history) | Git 历史与远端同步；仓库树显示本地未提交修改数量徽标 |
-| `dsh-local-file-reference` | `0.1.2-rc.1` | [`lwt-sadais/dsh-local-file-reference`](https://github.com/lwt-sadais/dsh-local-file-reference) | 本地文件路径引用；适配 rc.1 Lexical 输入框（粘贴/拖拽/删除），向下兼容 alpha.1 textarea 输入框 |
-| `dsh-plan-review-card` | `0.1.2-alpha.1` | [`lwt-sadais/dsh-plan-review-card`](https://github.com/lwt-sadais/dsh-plan-review-card) | 结构化审查卡片；右上角悬浮入口直达会话全部卡片全文（历史卡片由主机路由回放）；点击卡片时自动展开统一侧边栏，侧边栏不可用时回退到页面根层 Portal 阅读栏 |
-| `dsh-reasoning-efforts` | `0.1.2-alpha.1` | [`lwt-sadais/dsh-reasoning-efforts`](https://github.com/lwt-sadais/dsh-reasoning-efforts) | 按模型原子配置 Provider 推理等级与输入能力；使用 alpha.1 `ctx.remote.settings` 读取和保存设置 |
-| `dsh-free-search` | 上游原版 `0.4.24` | [`DDDMUC/dsh-free-search`](https://github.com/DDDMUC/dsh-free-search) | 免费多引擎搜索 provider（DuckDuckGo/Bing/SearXNG 等，无需 API key）；作者声明兼容 alpha.2 及以上、未验证 alpha.1，设置页依赖兼容层补齐的 settings API |
+| `dsh-git-diff` | `0.1.5-rc.2`（peer >=0.1.2-rc.1） | [`lwt-sadais/dsh-git-diff`](https://github.com/lwt-sadais/dsh-git-diff) | 自研 Git Diff 审查；逐 API 核对 rc.1↔rc.2 全部依赖未变 |
+| `dsh-git-history` | `0.1.5-rc.2`（peer >=0.1.2-rc.1） | [`lwt-sadais/dsh-git-history`](https://github.com/lwt-sadais/dsh-git-history) | 自研 Git 历史与远端同步；仓库树显示本地未提交修改数量徽标 |
+| `dsh-local-file-reference` | `0.1.5-rc.2` | [`lwt-sadais/dsh-local-file-reference`](https://github.com/lwt-sadais/dsh-local-file-reference) | 自研本地文件路径引用；粘贴/拖拽/删除路径自动转 @ 引用，与官方 ui-reference 并行不冲突 |
+| `dsh-plan-review-card` | `0.1.5-rc.2`（peer >=0.1.2-rc.1） | [`lwt-sadais/dsh-plan-review-card`](https://github.com/lwt-sadais/dsh-plan-review-card) | 自研结构化审查卡片；FAB 锚定改到头部 moreButton 菜单；点卡片联动统一侧边栏（不可用时回退 Portal 阅读栏） |
+| `dsh-reasoning-efforts` | `0.1.5-rc.2`（peer >=0.1.2-rc.1） | [`lwt-sadais/dsh-reasoning-efforts`](https://github.com/lwt-sadais/dsh-reasoning-efforts) | 自研按模型图形化配置推理等级与输入能力；官方明确不做该编辑 UI，插件仍是唯一配置界面 |
+| `dsh-better-sidebar` | `0.1.5-rc.1+`（已在 rc.2 验证） | [`omdsh-dev/DSH-better-sidebar`](https://github.com/omdsh-dev/DSH-better-sidebar) | 上游 v0.19.1；改用 DSH 原生右侧栏 API，保留文件编辑器与 Ctrl/Cmd+F 查找面板及重复挂载保护 |
+| `@muwinds/dsh-archived-sessions` | `0.1.5-rc.1` | [`MuWinds/dsh-archived-sessions`](https://github.com/MuWinds/dsh-archived-sessions) | 上游 HEAD；已移植 0.1.5-rc.1，归档会话管理（官方归档为单向，无恢复界面） |
+| `@linxin666/dsh-web-all` | `0.3.22`（>=0.1.5-rc.1） | [`zhu1090093659/dsh-web`](https://github.com/zhu1090093659/dsh-web) | Web UI 聚合包；ssh/pet/perf/describe-image 等仍无官方替代，market/usage 等与官方内置功能重叠可按需裁剪 |
+| `dsh-free-search` | 上游原版 `0.4.28` | [`DDDMUC/dsh-free-search`](https://github.com/DDDMUC/dsh-free-search) | 免费多引擎搜索 provider（DuckDuckGo/Bing/SearXNG 等，无需 API key）；0.4.28 声明兼容 0.1.5 并修复官方 `/` 菜单失效 |
 
 > `@deepseek-ai/dsh-base` 和 `@deepseek-ai/dsh-web-app` 是 DSH Desktop Profile 的内置基础 Bundle，不作为第三方插件重复安装。
 

@@ -3,63 +3,41 @@
 set -uo pipefail
 
 readonly REPOSITORY="lwt-sadais/dsh-desktop-bootstrap"
-readonly ARCHIVE_URL="https://github.com/${REPOSITORY}/archive/refs/heads/main.tar.gz"
-readonly DSH_HOME="${HOME}/.dsh"
+# 分支阶段自包含：脚本与资源都取自本分支；合并回 main 时改回 'main'。
+readonly SOURCE_REF="adapt-desktop-2.0.10"
+readonly ARCHIVE_URL="https://github.com/${REPOSITORY}/archive/refs/heads/${SOURCE_REF}.tar.gz"
+# v2.0.7 起桌面支持自定义数据目录；优先环境变量 DSH_HOME，最后回退 ~/.dsh。
+readonly DSH_HOME="${DSH_HOME:-${HOME}/.dsh}"
 readonly PROFILE_DIR="${DSH_HOME}/profiles/desktop"
-readonly COMPAT_PLUGIN_NAME="dsh-settings-alpha1-compat"
-readonly COMPAT_PLUGIN_DIR="${DSH_HOME}/plugins/${COMPAT_PLUGIN_NAME}"
-readonly BETTER_SIDEBAR_FORK="github:lwt-sadais/DSH-better-sidebar#a4f184bdb269c63457bc6d373495da0ee90f02c3"
 readonly CODEX_PRESET_ID="codex-mode"
 readonly AGENT_PRESETS_DIR="${DSH_HOME}/.agent-presets"
 readonly SETTINGS_FILE="${DSH_HOME}/settings.yaml"
 readonly PLUGIN_NAMES=(
-  "${COMPAT_PLUGIN_NAME}"
-  "@linxin666/dsh-web-all"
-  "dsh-better-sidebar"
-  "dsh-at-file"
-  "@muwinds/dsh-archived-sessions"
   "dsh-git-diff"
   "dsh-git-history"
   "dsh-local-file-reference"
   "dsh-plan-review-card"
   "dsh-reasoning-efforts"
+  "dsh-better-sidebar"
+  "@muwinds/dsh-archived-sessions"
+  "@linxin666/dsh-web-all"
   "dsh-free-search"
 )
 readonly PLUGIN_SOURCES=(
-  "link:${COMPAT_PLUGIN_DIR}"
-  "@linxin666/dsh-web-all@0.3.9"
-  "${BETTER_SIDEBAR_FORK}"
-  "github:lwt-sadais/dsh-at-file#6dbc6209a881c97ae094081e5fb8899a9f4b1b05"
-  "github:lwt-sadais/dsh-archived-sessions#0f75caef3d20ac02b2f7588c2524d94497036f9e"
-  "github:lwt-sadais/dsh-git-diff#aa86ca609d75f6ca9a3e5a327f79b500e7400c5e"
-  "github:lwt-sadais/dsh-git-history#c73206506e526cfa872131c7065f7a964961adb9"
+  "github:lwt-sadais/dsh-git-diff#3d955d2ab876d68faa1fa1a58a54462b4dde1465"
+  "github:lwt-sadais/dsh-git-history#31617eeb709a25e53c52928c4a5f2f14179d8247"
   "github:lwt-sadais/dsh-local-file-reference#4dba61891126af8ae71cd327a8f9b72124450e93"
-  "github:lwt-sadais/dsh-plan-review-card#0fdb6a94e2f06fba522432d55e12426e5daff80d"
-  "github:lwt-sadais/dsh-reasoning-efforts#eb66af3df2c99e5d5014bcedd61abb7d7c61a7d3"
-  "dsh-free-search@0.4.24"
+  "github:lwt-sadais/dsh-plan-review-card#07c3fa29e3b33272930f1fb9776469cf497df81e"
+  "github:lwt-sadais/dsh-reasoning-efforts#9332e2365d6ecccf33e47f87f345c56b12b92b81"
+  "github:omdsh-dev/DSH-better-sidebar#8753096a583ff2891d57a0074f1ac71cd5c6003e"
+  "github:MuWinds/dsh-archived-sessions#5654381f0f54a4ada786bde569378235e2df01bf"
+  "@linxin666/dsh-web-all@0.3.22"
+  "dsh-free-search@0.4.28"
 )
 readonly OBSOLETE_PLUGIN_NAMES=(
   "@linxin666/dsh-web-ui-all"
-)
-readonly MINIMUM_RELEASE_AGE_EXCLUDES=(
-  "@linxin666/dsh-client-ui-plugin-manager@0.3.9"
-  "@linxin666/dsh-client-ui-community-plugins@0.3.9"
-  "@linxin666/dsh-client-ui-market@0.3.9"
-  "@linxin666/dsh-client-ui-task-board@0.3.9"
-  "@linxin666/dsh-client-ui-git-graph@0.3.9"
-  "@linxin666/dsh-perf@0.3.9"
-  "@linxin666/dsh-pet@0.3.9"
-  "@linxin666/dsh-remote-web-ui@0.3.9"
-  "@linxin666/dsh-ssh@0.3.9"
-  "@linxin666/dsh-tool-describe-image@0.3.9"
-  "@linxin666/dsh-liangshen@0.3.9"
-  "@linxin666/dsh-client-ui-skill-explorer@0.3.9"
-  "@linxin666/dsh-desktop-launcher@0.3.9"
-  "@linxin666/dsh-doctor@0.3.9"
-  "@linxin666/dsh-usage@0.3.9"
-  "@linxin666/dsh-client-ui-web-ui-settings@0.3.9"
-  "@linxin666/dsh-client-ui-skin-center@0.3.9"
-  "@linxin666/dsh-web-all@0.3.9"
+  "dsh-settings-alpha1-compat"
+  "dsh-at-file"
 )
 
 TEMP_DIR=""
@@ -140,16 +118,6 @@ install_skills() {
   log "已合并安装用户级 Skills，现有私密配置保持不变。"
 }
 
-# 安装仓库内置的 Harness alpha.1 设置 API 兼容插件。
-install_settings_compat_plugin() {
-  local source_path="${SOURCE_DIR}/plugins/${COMPAT_PLUGIN_NAME}"
-
-  [[ -f "${source_path}/package.json" ]] || fail "兼容插件源码不完整：${source_path}。"
-  mkdir -p "${COMPAT_PLUGIN_DIR}" || fail "无法创建兼容插件目录 ${COMPAT_PLUGIN_DIR}。"
-  cp -R "${source_path}/." "${COMPAT_PLUGIN_DIR}/" || fail "安装设置 API 兼容插件失败。"
-  log "已安装 Harness alpha.1 设置 API 兼容插件。"
-}
-
 # 安装仓库中的 Codex 模式 Agent 预设。
 install_agent_presets() {
   local source_path="${SOURCE_DIR}/agent-presets/${CODEX_PRESET_ID}"
@@ -200,48 +168,69 @@ NODE
   log "已将默认 Agent 预设设为 Codex 模式。"
 }
 
-# 将已核对的 Web UI 精确版本加入最短发布时间豁免，同时保留用户已有配置。
-add_minimum_release_age_excludes() {
-  local current_json merged_json verified_json
+# 解析 pnpm 构建拦截输出中的依赖键，写入 Desktop Profile 的 pnpm-workspace.yaml allowBuilds 名单。
+# 2.0.x 已移除 pnpm approve-builds 流程与 minimumReleaseAgeExclude 机制：桌面在 pnpm 边界统一传
+# --config.minimumReleaseAge=0，构建白名单改由 Profile 的 pnpm-workspace.yaml allowBuilds 控制；
+# cpu-features 不写入名单即保持被拒。
+approve_pending_builds_except_cpu_features() {
+  local output="$1"
+  local keys_json
+  local keys=()
 
-  command -v pnpm >/dev/null 2>&1 || fail "当前终端中找不到 pnpm，无法配置依赖供应链策略。"
+  command -v pnpm >/dev/null 2>&1 || fail "当前终端中找不到 pnpm，无法写入 allowBuilds 构建白名单。"
   [[ -d "${PROFILE_DIR}" ]] || fail "未找到 Desktop Profile 目录 ${PROFILE_DIR}。"
 
-  current_json="$(cd "${PROFILE_DIR}" && pnpm config get --location project --json minimumReleaseAgeExclude)" || fail "读取 Desktop Profile 的 minimumReleaseAgeExclude 配置失败。"
-  merged_json="$(node -e '
-    const current = process.argv[1] ? JSON.parse(process.argv[1]) : [];
-    const required = process.argv.slice(2);
-    process.stdout.write(JSON.stringify([...new Set([...current, ...required])]));
-  ' "${current_json}" "${MINIMUM_RELEASE_AGE_EXCLUDES[@]}")" || fail "合并 Desktop Profile 的 minimumReleaseAgeExclude 配置失败。"
-
-  (cd "${PROFILE_DIR}" && pnpm config set --location project --json minimumReleaseAgeExclude "${merged_json}") || fail "写入 Desktop Profile 的 minimumReleaseAgeExclude 配置失败。"
-  verified_json="$(cd "${PROFILE_DIR}" && pnpm config get --location project --json minimumReleaseAgeExclude)" || fail "验证 Desktop Profile 的 minimumReleaseAgeExclude 配置失败。"
-  node -e '
-    const configured = new Set(JSON.parse(process.argv[1]));
-    const missing = process.argv.slice(2).filter((entry) => !configured.has(entry));
-    if (missing.length) {
-      console.error(`缺少精确豁免：${missing.join(", ")}`);
-      process.exit(1);
-    }
-  ' "${verified_json}" "${MINIMUM_RELEASE_AGE_EXCLUDES[@]}" || fail "供应链策略配置验证失败。"
-
-  log "已保留现有策略，并加入 Web UI 0.3.9 的精确发布时间豁免。"
+  keys_json="$(node --input-type=module - "${output}" <<'NODE'
+const keys = new Set()
+const output = process.argv[2] ?? ''
+for (const match of output.matchAll(/^Ignored build scripts?:\s*([^\n]+)$/gim)) {
+  for (const token of match[1].split(/[,;，；\s]+/)) {
+    const key = token.trim().replace(/^['"`]+|['"`]+$/g, '').replace(/@[0-9][0-9A-Za-z.-]*$/, '')
+    if (/^[A-Za-z@][A-Za-z0-9._/@-]*$/.test(key)) keys.add(key)
+  }
 }
+for (const match of output.matchAll(/`([@A-Za-z][@A-Za-z0-9._/@-]+)`/g)) keys.add(match[1])
+const noise = new Set(['cpu-features', 'Done', 'Progress', 'Ignored', 'builds', 'pnpm-workspace.yaml', 'allowBuilds', 'node_modules'])
+console.log(JSON.stringify([...keys].filter((key) => !noise.has(key))))
+NODE
+)" || fail "解析 pnpm 构建拦截输出失败。"
 
-# 拒绝可选的 cpu-features 原生构建，再批准其余全部待审批依赖脚本。
-approve_pending_builds_except_cpu_features() {
-  local output_file="$1"
-
-  command -v pnpm >/dev/null 2>&1 || return 1
-  [[ -d "${PROFILE_DIR}" ]] || return 1
-
-  if grep -qiE '(^|[[:space:],:])cpu-features(@|[[:space:],]|$)' "${output_file}"; then
-    log "正在拒绝可选原生依赖 cpu-features 的构建脚本……"
-    (cd "${PROFILE_DIR}" && pnpm approve-builds '!cpu-features') || return 1
+  mapfile -t keys < <(node -e 'for (const key of JSON.parse(process.argv[1] || "[]")) console.log(key)' "${keys_json}")
+  if [[ ${#keys[@]} -eq 0 ]]; then
+    log "pnpm 输出中未识别到 allowBuilds 依赖键，请按上方提示手工补齐后重跑。"
+    return 1
   fi
 
-  log "正在批准除 cpu-features 外的全部待审批依赖构建脚本……"
-  (cd "${PROFILE_DIR}" && pnpm approve-builds --all)
+  log "正在把依赖键写入 Profile pnpm-workspace.yaml allowBuilds（cpu-features 保持拒绝）：${keys[*]}……"
+  DSH_PROFILE_DIR="${PROFILE_DIR}" node --input-type=module - "${keys[@]}" <<'NODE' || fail "写入 Desktop Profile 的 allowBuilds 白名单失败。"
+import { readFile, rename, rm, writeFile } from 'node:fs/promises'
+import path from 'node:path'
+
+const workspaceFile = path.join(process.env.DSH_PROFILE_DIR, 'pnpm-workspace.yaml')
+const keys = process.argv.slice(2)
+let source = ''
+try { source = await readFile(workspaceFile, 'utf8') } catch (error) { if (error?.code !== 'ENOENT') throw error }
+const existing = new Set()
+for (const match of source.matchAll(/^allowBuilds:\s*\n((?:[ \t]+-.*\n?)*)/gm)) {
+  for (const entry of match[1].matchAll(/-\s*['"]?([^'"\n]+)['"]?/g)) existing.add(entry[1].trim())
+}
+for (const match of source.matchAll(/^allowBuilds:\s*\[([^\]]*)\]/gm)) {
+  for (const entry of match[1].matchAll(/['"]?([^,'"\]]+)['"]?/g)) existing.add(entry[1].trim())
+}
+const merged = [...new Set([...existing, ...keys])]
+const stripped = source.replace(/^allowBuilds:\s*\n(?:[ \t]+-.*\n?)*|^allowBuilds:\s*\[[^\]]*\]\n?/gm, '')
+const body = `allowBuilds:\n${merged.map((key) => `  - '${key}'`).join('\n')}\n`
+const updated = `${stripped.trimEnd()}\n\n${body}`
+const temporaryFile = `${workspaceFile}.tmp-${process.pid}`
+try {
+  await writeFile(temporaryFile, updated, 'utf8')
+  await rename(temporaryFile, workspaceFile)
+} catch (error) {
+  await rm(temporaryFile, { force: true })
+  throw error
+}
+console.log(JSON.stringify(merged))
+NODE
 }
 
 # 执行一次插件卸载或安装；依赖构建被拦截时完成审批并仅重试原命令一次。
@@ -261,8 +250,8 @@ run_plugin_operation() {
     return 0
   fi
 
-  if grep -qiE 'pnpm[[:space:]]+approve-builds|ERR_PNPM_IGNORED_BUILDS' "${output_file}"; then
-    approve_pending_builds_except_cpu_features "${output_file}" || fail "Desktop Profile 插件依赖构建审批失败，请查看上方 pnpm 输出。"
+  if grep -qiE 'pnpm[[:space:]]+approve-builds|allowBuilds|ERR_PNPM_IGNORED_BUILDS' "${output_file}"; then
+    approve_pending_builds_except_cpu_features "$(cat "${output_file}")" || fail "Desktop Profile 插件依赖构建白名单处理失败，请查看上方 pnpm 输出。"
     log "正在重试 Desktop Profile 插件${label}……"
     dsh plugin --profile desktop "${action}" "$@" || fail "Desktop Profile 插件${label}重试失败。"
     log "已完成 Desktop Profile 插件${label}。"
@@ -304,30 +293,6 @@ install_plugins() {
   run_plugin_operation add "安装" "${PLUGIN_SOURCES[@]}"
 }
 
-# 确保兼容层先于会调用新设置 API 的第三方聚合包加载。
-order_settings_compat_bundle() {
-  DSH_PROFILE_DIR="${PROFILE_DIR}" node --input-type=module <<'NODE' || fail "无法调整设置兼容插件的加载顺序。"
-import { readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
-
-const manifestPath = join(process.env.DSH_PROFILE_DIR, 'package.json')
-const profile = JSON.parse(await readFile(manifestPath, 'utf8'))
-const bundles = profile.dsh?.profile?.bundles
-if (!Array.isArray(bundles)) throw new Error('Profile manifest 缺少 dsh.profile.bundles')
-const compat = 'dsh-settings-alpha1-compat'
-const webAll = '@linxin666/dsh-web-all'
-const compatIndex = bundles.indexOf(compat)
-const webAllIndex = bundles.indexOf(webAll)
-if (compatIndex === -1 || webAllIndex === -1) throw new Error('Profile Bundle 列表缺少兼容插件或 dsh-web-all')
-if (compatIndex > webAllIndex) {
-  bundles.splice(compatIndex, 1)
-  bundles.splice(webAllIndex, 0, compat)
-  await writeFile(manifestPath, `${JSON.stringify(profile, null, 2)}\n`, 'utf8')
-}
-NODE
-  log "已确认设置兼容插件先于 Web UI 聚合包加载。"
-}
-
 # 验证关键文件均已落盘，避免仅凭命令退出状态判断初始化成功。
 verify_installation() {
   local required_path
@@ -337,9 +302,6 @@ verify_installation() {
     "${DSH_HOME}/skills/gpt-image-generator/SKILL.md"
     "${AGENT_PRESETS_DIR}/${CODEX_PRESET_ID}/agent.cordis.yml"
     "${AGENT_PRESETS_DIR}/${CODEX_PRESET_ID}/preset.yml"
-    "${COMPAT_PLUGIN_DIR}/package.json"
-    "${COMPAT_PLUGIN_DIR}/index.js"
-    "${COMPAT_PLUGIN_DIR}/cordis.patch.yml"
   )
 
   for required_path in "${required_paths[@]}"; do
@@ -367,11 +329,6 @@ const profile = JSON.parse(await readFile(join(profileDir, 'package.json'), 'utf
 const dependencies = profile.dependencies ?? {}
 const bundleList = profile.dsh?.profile?.bundles ?? []
 const bundles = new Set(bundleList)
-const compatIndex = bundleList.indexOf('dsh-settings-alpha1-compat')
-const webAllIndex = bundleList.indexOf('@linxin666/dsh-web-all')
-if (compatIndex === -1 || webAllIndex === -1 || compatIndex > webAllIndex) {
-  throw new Error('设置兼容插件必须位于 dsh-web-all 之前')
-}
 for (const name of names) {
   if (!Object.hasOwn(dependencies, name)) throw new Error(`Profile dependencies 缺少 ${name}`)
   const packageDir = join(profileDir, 'node_modules', ...name.split('/'))
@@ -402,12 +359,9 @@ main() {
   download_source
   install_agents
   install_skills
-  install_settings_compat_plugin
   install_agent_presets
   set_default_agent_preset
-  add_minimum_release_age_excludes
   install_plugins
-  order_settings_compat_bundle
   verify_installation
 
   log "初始化完成。首次使用 gpt-image-generator 时，Skill 会自动检测并询问缺失配置。请完全退出并重新启动 DSH Desktop。"

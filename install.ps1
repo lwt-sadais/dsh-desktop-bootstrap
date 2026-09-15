@@ -2,49 +2,28 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $Repository = 'lwt-sadais/dsh-desktop-bootstrap'
-$ArchiveUrl = "https://github.com/$Repository/archive/refs/heads/main.zip"
-$DshHome = Join-Path $HOME '.dsh'
+# 分支阶段自包含：脚本与资源都取自本分支；合并回 main 时改回 'main'。
+$SourceRef = 'adapt-desktop-2.0.10'
+$ArchiveUrl = "https://github.com/$Repository/archive/refs/heads/$SourceRef.zip"
+# v2.0.7 起桌面支持自定义数据目录；优先环境变量 DSH_HOME，最后回退 ~/.dsh。
+$DshHome = if ($env:DSH_HOME) { $env:DSH_HOME } else { Join-Path $HOME '.dsh' }
 $ProfileDirectory = Join-Path $DshHome 'profiles/desktop'
-$CompatPluginName = 'dsh-settings-alpha1-compat'
-$CompatPluginDirectory = Join-Path $DshHome "plugins/$CompatPluginName"
-$BetterSidebarFork = 'github:lwt-sadais/DSH-better-sidebar#a4f184bdb269c63457bc6d373495da0ee90f02c3'
+$BetterSidebarUpstream = 'github:omdsh-dev/DSH-better-sidebar#8753096a583ff2891d57a0074f1ac71cd5c6003e'
 $CodexPresetId = 'codex-mode'
 $AgentPresetsDirectory = Join-Path $DshHome '.agent-presets'
 $SettingsFile = Join-Path $DshHome 'settings.yaml'
 $Plugins = @(
-    [pscustomobject]@{ Name = $CompatPluginName; Source = "link:$CompatPluginDirectory" },
-    [pscustomobject]@{ Name = '@linxin666/dsh-web-all'; Source = '@linxin666/dsh-web-all@0.3.9' },
-    [pscustomobject]@{ Name = 'dsh-better-sidebar'; Source = $BetterSidebarFork },
-    [pscustomobject]@{ Name = 'dsh-at-file'; Source = 'github:lwt-sadais/dsh-at-file#6dbc6209a881c97ae094081e5fb8899a9f4b1b05' },
-    [pscustomobject]@{ Name = '@muwinds/dsh-archived-sessions'; Source = 'github:lwt-sadais/dsh-archived-sessions#0f75caef3d20ac02b2f7588c2524d94497036f9e' },
-    [pscustomobject]@{ Name = 'dsh-git-diff'; Source = 'github:lwt-sadais/dsh-git-diff#aa86ca609d75f6ca9a3e5a327f79b500e7400c5e' },
-    [pscustomobject]@{ Name = 'dsh-git-history'; Source = 'github:lwt-sadais/dsh-git-history#c73206506e526cfa872131c7065f7a964961adb9' },
+    [pscustomobject]@{ Name = 'dsh-git-diff'; Source = 'github:lwt-sadais/dsh-git-diff#3d955d2ab876d68faa1fa1a58a54462b4dde1465' },
+    [pscustomobject]@{ Name = 'dsh-git-history'; Source = 'github:lwt-sadais/dsh-git-history#31617eeb709a25e53c52928c4a5f2f14179d8247' },
     [pscustomobject]@{ Name = 'dsh-local-file-reference'; Source = 'github:lwt-sadais/dsh-local-file-reference#4dba61891126af8ae71cd327a8f9b72124450e93' },
-    [pscustomobject]@{ Name = 'dsh-plan-review-card'; Source = 'github:lwt-sadais/dsh-plan-review-card#0fdb6a94e2f06fba522432d55e12426e5daff80d' },
-    [pscustomobject]@{ Name = 'dsh-reasoning-efforts'; Source = 'github:lwt-sadais/dsh-reasoning-efforts#eb66af3df2c99e5d5014bcedd61abb7d7c61a7d3' },
-    [pscustomobject]@{ Name = 'dsh-free-search'; Source = 'dsh-free-search@0.4.24' }
+    [pscustomobject]@{ Name = 'dsh-plan-review-card'; Source = 'github:lwt-sadais/dsh-plan-review-card#07c3fa29e3b33272930f1fb9776469cf497df81e' },
+    [pscustomobject]@{ Name = 'dsh-reasoning-efforts'; Source = 'github:lwt-sadais/dsh-reasoning-efforts#9332e2365d6ecccf33e47f87f345c56b12b92b81' },
+    [pscustomobject]@{ Name = 'dsh-better-sidebar'; Source = $BetterSidebarUpstream },
+    [pscustomobject]@{ Name = '@muwinds/dsh-archived-sessions'; Source = 'github:MuWinds/dsh-archived-sessions#5654381f0f54a4ada786bde569378235e2df01bf' },
+    [pscustomobject]@{ Name = '@linxin666/dsh-web-all'; Source = '@linxin666/dsh-web-all@0.3.22' },
+    [pscustomobject]@{ Name = 'dsh-free-search'; Source = 'dsh-free-search@0.4.28' }
 )
-$ObsoletePluginNames = @('@linxin666/dsh-web-ui-all')
-$MinimumReleaseAgeExcludes = @(
-    '@linxin666/dsh-client-ui-plugin-manager@0.3.9',
-    '@linxin666/dsh-client-ui-community-plugins@0.3.9',
-    '@linxin666/dsh-client-ui-market@0.3.9',
-    '@linxin666/dsh-client-ui-task-board@0.3.9',
-    '@linxin666/dsh-client-ui-git-graph@0.3.9',
-    '@linxin666/dsh-perf@0.3.9',
-    '@linxin666/dsh-pet@0.3.9',
-    '@linxin666/dsh-remote-web-ui@0.3.9',
-    '@linxin666/dsh-ssh@0.3.9',
-    '@linxin666/dsh-tool-describe-image@0.3.9',
-    '@linxin666/dsh-liangshen@0.3.9',
-    '@linxin666/dsh-client-ui-skill-explorer@0.3.9',
-    '@linxin666/dsh-desktop-launcher@0.3.9',
-    '@linxin666/dsh-doctor@0.3.9',
-    '@linxin666/dsh-usage@0.3.9',
-    '@linxin666/dsh-client-ui-web-ui-settings@0.3.9',
-    '@linxin666/dsh-client-ui-skin-center@0.3.9',
-    '@linxin666/dsh-web-all@0.3.9'
-)
+$ObsoletePluginNames = @('@linxin666/dsh-web-ui-all', 'dsh-settings-alpha1-compat', 'dsh-at-file')
 $script:TempDirectory = $null
 $script:SourceDirectory = $null
 $script:YamlModule = $null
@@ -117,18 +96,6 @@ function Install-UserSkills {
     New-Item -ItemType Directory -Path $skillsTarget -Force | Out-Null
     Copy-Item -Path (Join-Path $skillsSource '*') -Destination $skillsTarget -Recurse -Force
     Write-InitLog '已合并安装用户级 Skills，现有私密配置保持不变。'
-}
-
-# 安装仓库内置的 Harness alpha.1 设置 API 兼容插件。
-function Install-SettingsCompatPlugin {
-    $sourcePath = Join-Path $script:SourceDirectory "plugins/$CompatPluginName"
-    if (-not (Test-Path -LiteralPath (Join-Path $sourcePath 'package.json') -PathType Leaf)) {
-        throw "兼容插件源码不完整：$sourcePath。"
-    }
-
-    New-Item -ItemType Directory -Path $CompatPluginDirectory -Force | Out-Null
-    Copy-Item -Path (Join-Path $sourcePath '*') -Destination $CompatPluginDirectory -Recurse -Force
-    Write-InitLog '已安装 Harness alpha.1 设置 API 兼容插件。'
 }
 
 # 安装仓库中的 Codex 模式 Agent 预设。
@@ -274,79 +241,86 @@ function Invoke-CapturedCommand {
     }
 }
 
-# 将已核对的 Web UI 精确版本加入最短发布时间豁免，同时保留用户已有配置。
-function Add-MinimumReleaseAgeExcludes {
-    if (-not (Get-Command 'pnpm' -ErrorAction SilentlyContinue)) {
-        throw '当前终端中找不到 pnpm，无法配置依赖供应链策略。'
-    }
-    if (-not (Test-Path -LiteralPath $ProfileDirectory -PathType Container)) {
-        throw "未找到 Desktop Profile 目录 $ProfileDirectory。"
-    }
-
-    Push-Location $ProfileDirectory
-    try {
-        $currentJson = (& pnpm config get --location project --json minimumReleaseAgeExclude 2>$null | Out-String).Trim()
-        if ($LASTEXITCODE -ne 0) {
-            throw '读取 Desktop Profile 的 minimumReleaseAgeExclude 配置失败。'
-        }
-
-        $currentExcludes = @()
-        if ($currentJson) {
-            $currentExcludes = @([string[]]($currentJson | ConvertFrom-Json))
-        }
-        $mergedExcludes = [string[]]@(@($currentExcludes) + @($MinimumReleaseAgeExcludes) | Select-Object -Unique)
-        $mergedJson = ConvertTo-Json -InputObject $mergedExcludes -Compress
-
-        # Windows 的 pnpm 命令垫片经由 shell 转发参数，JSON 双引号需要保留转义。
-        $escapedJson = $mergedJson.Replace('"', '\"')
-        & pnpm config set --location project --json minimumReleaseAgeExclude $escapedJson
-        if ($LASTEXITCODE -ne 0) {
-            throw '写入 Desktop Profile 的 minimumReleaseAgeExclude 配置失败。'
-        }
-
-        $verifiedJson = (& pnpm config get --location project --json minimumReleaseAgeExclude 2>$null | Out-String).Trim()
-        $verifiedExcludes = @([string[]]($verifiedJson | ConvertFrom-Json))
-        foreach ($requiredExclude in $MinimumReleaseAgeExcludes) {
-            if ($requiredExclude -notin $verifiedExcludes) {
-                throw "供应链策略配置验证失败，缺少精确豁免 $requiredExclude。"
-            }
-        }
-    }
-    finally {
-        Pop-Location
-    }
-
-    Write-InitLog '已保留现有策略，并加入 Web UI 0.3.9 的精确发布时间豁免。'
-}
-
-# 拒绝可选的 cpu-features 原生构建，再批准其余全部待审批依赖脚本。
+# 解析 pnpm 构建拦截输出中的依赖键，写入 Desktop Profile 的 pnpm-workspace.yaml allowBuilds 名单。
+# 2.0.x 已移除 pnpm approve-builds 流程与 minimumReleaseAgeExclude 机制：桌面在 pnpm 边界统一传
+# --config.minimumReleaseAge=0，构建白名单改由 Profile 的 pnpm-workspace.yaml allowBuilds 控制；
+# cpu-features 不写入名单即保持被拒。
 function Approve-PendingBuildsExceptCpuFeatures {
     param([Parameter(Mandatory)][string]$Output)
 
     if (-not (Get-Command 'pnpm' -ErrorAction SilentlyContinue)) {
-        throw '当前终端中找不到 pnpm，无法批准依赖构建脚本。'
+        throw '当前终端中找不到 pnpm，无法写入 allowBuilds 构建白名单。'
     }
     if (-not (Test-Path -LiteralPath $ProfileDirectory -PathType Container)) {
         throw "未找到 Desktop Profile 目录 $ProfileDirectory。"
     }
 
-    Push-Location $ProfileDirectory
-    try {
-        if ($Output -match '(?m)(?:^|[\s,:])cpu-features(?:@|[\s,]|$)') {
-            Write-InitLog '正在拒绝可选原生依赖 cpu-features 的构建脚本……'
-            & pnpm approve-builds '!cpu-features'
-            if ($LASTEXITCODE -ne 0) {
-                return $false
-            }
-        }
+    $candidates = @()
+    # pnpm 标准输出："Ignored build scripts: a, b, c"。
+    foreach ($match in [regex]::Matches($Output, '(?im)^Ignored build scripts?:\s*(?<list>[^\r\n]+)$')) {
+        $candidates += @($match.Groups['list'].Value -split '[,;，；\s]+' |
+            ForEach-Object { $_.Trim().Trim('"''`') -replace '@[0-9][0-9A-Za-z.-]*$', '' } |
+            Where-Object { $_ -match '^[A-Za-z@][A-Za-z0-9._/@-]*$' })
+    }
+    # dsh CLI 提示行中的反引号键名（格式演进时兜底）。
+    foreach ($match in [regex]::Matches($Output, '`(?<key>[@A-Za-z][@A-Za-z0-9._/@-]+)`')) {
+        $candidates += @($match.Groups['key'].Value)
+    }
+    $noiseWords = @('cpu-features', 'Done', 'Progress', 'Ignored', 'builds', 'pnpm-workspace.yaml', 'allowBuilds', 'node_modules')
+    $keys = @($candidates | Where-Object { $_ -notin $noiseWords } | Select-Object -Unique)
+    if ($keys.Count -eq 0) {
+        Write-InitLog 'pnpm 输出中未识别到 allowBuilds 依赖键，请按上方提示手工补齐后重跑。'
+        return $false
+    }
 
-        Write-InitLog '正在批准除 cpu-features 外的全部待审批依赖构建脚本……'
-        & pnpm approve-builds --all
-        return ($LASTEXITCODE -eq 0)
+    Write-InitLog "正在把依赖键写入 Profile pnpm-workspace.yaml allowBuilds（cpu-features 保持拒绝）：$($keys -join ', ')……"
+    $nodeScript = @'
+const { readFile, rename, rm, writeFile } = require('node:fs/promises')
+const path = require('node:path')
+
+;(async () => {
+  const workspaceFile = path.join(process.env.DSH_PROFILE_DIR, 'pnpm-workspace.yaml')
+  const keys = process.argv.slice(2)
+  let source = ''
+  try { source = await readFile(workspaceFile, 'utf8') } catch (error) { if (error?.code !== 'ENOENT') throw error }
+  const existing = new Set()
+  for (const match of source.matchAll(/^allowBuilds:\s*\n((?:[ \t]+-.*\n?)*)/gm)) {
+    for (const entry of match[1].matchAll(/-\s*['"]?([^'"\n]+)['"]?/g)) existing.add(entry[1].trim())
+  }
+  for (const match of source.matchAll(/^allowBuilds:\s*\[([^\]]*)\]/gm)) {
+    for (const entry of match[1].matchAll(/['"]?([^,'"\]]+)['"]?/g)) existing.add(entry[1].trim())
+  }
+  const merged = [...new Set([...existing, ...keys])]
+  const stripped = source.replace(/^allowBuilds:\s*\n(?:[ \t]+-.*\n?)*|^allowBuilds:\s*\[[^\]]*\]\n?/gm, '')
+  const body = `allowBuilds:\n${merged.map((key) => `  - '${key}'`).join('\n')}\n`
+  const updated = `${stripped.trimEnd()}\n\n${body}`
+  const temporaryFile = `${workspaceFile}.tmp-${process.pid}`
+  try {
+    await writeFile(temporaryFile, updated, 'utf8')
+    await rename(temporaryFile, workspaceFile)
+  } catch (error) {
+    await rm(temporaryFile, { force: true })
+    throw error
+  }
+  console.log(JSON.stringify(merged))
+})().catch((error) => {
+  console.error(error)
+  process.exit(1)
+})
+'@
+
+    $previousProfile = $env:DSH_PROFILE_DIR
+    try {
+        $env:DSH_PROFILE_DIR = $ProfileDirectory
+        $nodeScript | & node - @($keys)
+        if ($LASTEXITCODE -ne 0) {
+            throw '写入 Desktop Profile 的 allowBuilds 白名单失败。'
+        }
     }
     finally {
-        Pop-Location
+        $env:DSH_PROFILE_DIR = $previousProfile
     }
+    return $true
 }
 
 # 执行一次插件卸载或安装；依赖构建被拦截时完成审批并仅重试原命令一次。
@@ -365,7 +339,7 @@ function Invoke-PluginOperation {
         return
     }
 
-    if ($result.Output -match '(?i)pnpm\s+approve-builds|ERR_PNPM_IGNORED_BUILDS') {
+    if ($result.Output -match '(?i)pnpm\s+approve-builds|allowBuilds|ERR_PNPM_IGNORED_BUILDS') {
         if (-not (Approve-PendingBuildsExceptCpuFeatures -Output $result.Output)) {
             throw 'Desktop Profile 插件依赖构建审批失败。请查看上方 pnpm 输出。'
         }
@@ -405,31 +379,6 @@ function Install-DesktopPlugins {
     Invoke-PluginOperation -Action 'add' -Label '安装' -Targets $installSources
 }
 
-# 确保兼容层先于会调用新设置 API 的第三方聚合包加载。
-function Set-SettingsCompatBundleOrder {
-    $manifestPath = Join-Path $ProfileDirectory 'package.json'
-    $profile = Read-Utf8Json -LiteralPath $manifestPath
-    $bundlesProperty = $profile.dsh.profile.PSObject.Properties['bundles']
-    if ($null -eq $bundlesProperty) {
-        throw 'Profile manifest 缺少 dsh.profile.bundles。'
-    }
-
-    $bundles = [System.Collections.Generic.List[string]]::new()
-    foreach ($bundle in @($bundlesProperty.Value)) { $bundles.Add([string]$bundle) }
-    $compatIndex = $bundles.IndexOf($CompatPluginName)
-    $webAllIndex = $bundles.IndexOf('@linxin666/dsh-web-all')
-    if ($compatIndex -lt 0 -or $webAllIndex -lt 0) {
-        throw 'Profile Bundle 列表缺少兼容插件或 dsh-web-all。'
-    }
-    if ($compatIndex -gt $webAllIndex) {
-        $bundles.RemoveAt($compatIndex)
-        $bundles.Insert($webAllIndex, $CompatPluginName)
-        $profile.dsh.profile.bundles = @($bundles)
-        Write-Utf8Json -LiteralPath $manifestPath -InputObject $profile
-    }
-    Write-InitLog '已确认设置兼容插件先于 Web UI 聚合包加载。'
-}
-
 # 验证关键文件均已落盘，避免仅凭命令退出状态判断初始化成功。
 function Test-Installation {
     $requiredPaths = @(
@@ -437,10 +386,7 @@ function Test-Installation {
         (Join-Path $DshHome 'skills/commit/SKILL.md'),
         (Join-Path $DshHome 'skills/gpt-image-generator/SKILL.md'),
         (Join-Path $AgentPresetsDirectory "$CodexPresetId/agent.cordis.yml"),
-        (Join-Path $AgentPresetsDirectory "$CodexPresetId/preset.yml"),
-        (Join-Path $CompatPluginDirectory 'package.json'),
-        (Join-Path $CompatPluginDirectory 'index.js'),
-        (Join-Path $CompatPluginDirectory 'cordis.patch.yml')
+        (Join-Path $AgentPresetsDirectory "$CodexPresetId/preset.yml")
     )
 
     foreach ($requiredPath in $requiredPaths) {
@@ -494,11 +440,6 @@ const { pathToFileURL } = require('node:url')
     $dependencyNames = Get-ObjectPropertyNames -InputObject $profileDependencies.Value
     $bundles = $profileSettings.Value.PSObject.Properties['bundles']
     $bundleNames = if ($null -ne $bundles) { @($bundles.Value) } else { @() }
-    $compatIndex = [array]::IndexOf($bundleNames, $CompatPluginName)
-    $webAllIndex = [array]::IndexOf($bundleNames, '@linxin666/dsh-web-all')
-    if ($compatIndex -lt 0 -or $webAllIndex -lt 0 -or $compatIndex -gt $webAllIndex) {
-        throw '验证失败，设置兼容插件必须位于 dsh-web-all 之前。'
-    }
     foreach ($plugin in $Plugins) {
         if ($plugin.Name -notin $dependencyNames) {
             throw "验证失败，Profile dependencies 缺少 $($plugin.Name)。"
@@ -548,12 +489,9 @@ function Start-Initialization {
         Receive-Source
         Install-AgentsFile
         Install-UserSkills
-        Install-SettingsCompatPlugin
         Install-AgentPresets
         Set-DefaultAgentPreset
-        Add-MinimumReleaseAgeExcludes
         Install-DesktopPlugins
-        Set-SettingsCompatBundleOrder
         Test-Installation
         Write-InitLog '初始化完成。首次使用 gpt-image-generator 时，Skill 会自动检测并询问缺失配置。请完全退出并重新启动 DSH Desktop。'
     }
