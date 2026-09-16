@@ -43,6 +43,9 @@ function Test-Prerequisites {
     if (-not (Get-Command 'node' -ErrorAction SilentlyContinue)) {
         throw '当前终端中找不到 node，无法安全更新 DSH 用户设置。'
     }
+    if (-not (Get-Command 'pnpm' -ErrorAction SilentlyContinue)) {
+        throw '当前终端中找不到 pnpm，无法管理 Desktop Profile 插件。'
+    }
 }
 
 # 兼容 Desktop 2.0.1 的 Profile 依赖布局和 2.0.2 起由桌面应用提供依赖的布局。
@@ -74,10 +77,12 @@ function Receive-Source {
     Invoke-WebRequest -Uri $ArchiveUrl -OutFile $archivePath -UseBasicParsing
     Expand-Archive -LiteralPath $archivePath -DestinationPath $script:TempDirectory -Force
 
-    $script:SourceDirectory = Join-Path $script:TempDirectory 'dsh-desktop-bootstrap-main'
-    if (-not (Test-Path -LiteralPath $script:SourceDirectory -PathType Container)) {
+    # 归档顶层目录名随 SourceRef 变化（分支名会拼入目录名），按固定前缀探测唯一目录。
+    $extracted = @(Get-ChildItem -LiteralPath $script:TempDirectory -Directory -Filter 'dsh-desktop-bootstrap-*')
+    if ($extracted.Count -ne 1) {
         throw '下载内容中未找到预期的仓库目录。'
     }
+    $script:SourceDirectory = $extracted[0].FullName
 }
 
 # 安装仓库中的全局指令文件 AGENTS.md。
@@ -195,7 +200,13 @@ function Write-Utf8Json {
     $utf8WithoutBom = [System.Text.UTF8Encoding]::new($false)
     try {
         [System.IO.File]::WriteAllText($temporaryPath, $content, $utf8WithoutBom)
-        [System.IO.File]::Replace($temporaryPath, $LiteralPath, $backupPath)
+        if (Test-Path -LiteralPath $LiteralPath) {
+            [System.IO.File]::Replace($temporaryPath, $LiteralPath, $backupPath)
+        }
+        else {
+            # Replace 要求目标文件已存在；全新文件直接落入正式路径。
+            [System.IO.File]::Move($temporaryPath, $LiteralPath)
+        }
     }
     finally {
         foreach ($cleanupPath in @($temporaryPath, $backupPath)) {
@@ -241,32 +252,30 @@ function Invoke-CapturedCommand {
     }
 }
 
-# 解析 pnpm 构建拦截输出中的依赖键，写入 Desktop Profile 的 pnpm-workspace.yaml allowBuilds 名单。
+# 解析 pnpm 构建拦截输出中的依赖键，写入 Desktop Profile 的 pnpm-workspace.yaml allowBuilds 布尔映射。
 # 2.0.x 已移除 pnpm approve-builds 流程与 minimumReleaseAgeExclude 机制：桌面在 pnpm 边界统一传
-# --config.minimumReleaseAge=0，构建白名单改由 Profile 的 pnpm-workspace.yaml allowBuilds 控制；
-# cpu-features 不写入名单即保持被拒。
+# --config.minimumReleaseAge=0，构建白名单由 allowBuilds 控制，映射值 true 允许、false 拒绝；
+# cpu-features 保持既有拒绝状态（无记录时不写入，默认即拒绝）。
 function Approve-PendingBuildsExceptCpuFeatures {
     param([Parameter(Mandatory)][string]$Output)
 
-    if (-not (Get-Command 'pnpm' -ErrorAction SilentlyContinue)) {
-        throw '当前终端中找不到 pnpm，无法写入 allowBuilds 构建白名单。'
-    }
     if (-not (Test-Path -LiteralPath $ProfileDirectory -PathType Container)) {
         throw "未找到 Desktop Profile 目录 $ProfileDirectory。"
     }
 
     $candidates = @()
-    # pnpm 标准输出："Ignored build scripts: a, b, c"。
-    foreach ($match in [regex]::Matches($Output, '(?im)^Ignored build scripts?:\s*(?<list>[^\r\n]+)$')) {
+    # 汇总行可能带 [ERR_PNPM_IGNORED_BUILDS] 前缀，不作行首锚定；键形如 cloudflared@0.7.3。
+    foreach ($match in [regex]::Matches($Output, '(?im)Ignored build scripts?:\s*(?<list>[^\r\n]+)$')) {
         $candidates += @($match.Groups['list'].Value -split '[,;，；\s]+' |
             ForEach-Object { $_.Trim().Trim('"''`') -replace '@[0-9][0-9A-Za-z.-]*$', '' } |
             Where-Object { $_ -match '^[A-Za-z@][A-Za-z0-9._/@-]*$' })
     }
-    # dsh CLI 提示行中的反引号键名（格式演进时兜底）。
-    foreach ($match in [regex]::Matches($Output, '`(?<key>[@A-Za-z][@A-Za-z0-9._/@-]+)`')) {
-        $candidates += @($match.Groups['key'].Value)
+    # git-hosted 包在解析阶段被拦截（ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED），
+    # pnpm 建议块的键形如 包名@https://codeload.github.com/…: true。
+    foreach ($match in [regex]::Matches($Output, '(?im)allowBuilds:\s*\r?\n\s*[''"]?(?<key>.+?)[''"]?:\s*true\s*$')) {
+        $candidates += @($match.Groups['key'].Value.Trim())
     }
-    $noiseWords = @('cpu-features', 'Done', 'Progress', 'Ignored', 'builds', 'pnpm-workspace.yaml', 'allowBuilds', 'node_modules')
+    $noiseWords = @('Done', 'Progress', 'Ignored', 'builds', 'pnpm-workspace.yaml', 'allowBuilds', 'node_modules')
     $keys = @($candidates | Where-Object { $_ -notin $noiseWords } | Select-Object -Unique)
     if ($keys.Count -eq 0) {
         Write-InitLog 'pnpm 输出中未识别到 allowBuilds 依赖键，请按上方提示手工补齐后重跑。'
@@ -280,20 +289,35 @@ const path = require('node:path')
 
 ;(async () => {
   const workspaceFile = path.join(process.env.DSH_PROFILE_DIR, 'pnpm-workspace.yaml')
-  const keys = process.argv.slice(2)
+  const requested = process.argv.slice(2)
   let source = ''
   try { source = await readFile(workspaceFile, 'utf8') } catch (error) { if (error?.code !== 'ENOENT') throw error }
-  const existing = new Set()
-  for (const match of source.matchAll(/^allowBuilds:\s*\n((?:[ \t]+-.*\n?)*)/gm)) {
-    for (const entry of match[1].matchAll(/-\s*['"]?([^'"\n]+)['"]?/g)) existing.add(entry[1].trim())
+  const allowed = new Map()
+  // 兼容两种历史格式：allowBuilds 布尔映射（pnpm 11）与早期依赖键列表。
+  const block = source.match(/^allowBuilds:[^\n]*\n((?:[ \t]+[^\n]*\n?)*)/m)
+  if (block) {
+    for (const line of block[1].split('\n')) {
+      // 键可含冒号（git-hosted 键内嵌 URL），按行尾的 ": true/false" 切分；引号键去引号。
+      const mapped = line.match(/^[ \t]+(.+?):\s*(true|false)\s*$/)
+      if (mapped) { allowed.set(mapped[1].trim().replace(/^["']|["']$/g, ''), mapped[2] === 'true'); continue }
+      const listed = line.match(/^[ \t]+-[ \t]*['"]?([^'"\n]+?)['"]?\s*$/)
+      if (listed) allowed.set(listed[1].trim(), true)
+    }
   }
-  for (const match of source.matchAll(/^allowBuilds:\s*\[([^\]]*)\]/gm)) {
-    for (const entry of match[1].matchAll(/['"]?([^,'"\]]+)['"]?/g)) existing.add(entry[1].trim())
+  let added = 0
+  for (const key of requested) {
+    if (allowed.has(key)) continue
+    // cpu-features 显式写入 false：明确拒绝后 pnpm 不再在每次安装时报 ERR_PNPM_IGNORED_BUILDS。
+    allowed.set(key, key !== 'cpu-features')
+    added += 1
   }
-  const merged = [...new Set([...existing, ...keys])]
-  const stripped = source.replace(/^allowBuilds:\s*\n(?:[ \t]+-.*\n?)*|^allowBuilds:\s*\[[^\]]*\]\n?/gm, '')
-  const body = `allowBuilds:\n${merged.map((key) => `  - '${key}'`).join('\n')}\n`
-  const updated = `${stripped.trimEnd()}\n\n${body}`
+  // 本轮没有可新增的键说明拦截原因未被解析到，交给上层终止重试，避免死循环。
+  if (added === 0) process.exit(3)
+  // @ 开头是 YAML 保留指示符，含 @ 或冒号的键需加引号。
+  const entry = (key) => /^[A-Za-z0-9._/-]+$/.test(key) ? `${key}: ${allowed.get(key)}` : `${JSON.stringify(key)}: ${allowed.get(key)}`
+  const body = `allowBuilds:\n${[...allowed].map(([key]) => `  ${entry(key)}`).join('\n')}\n`
+  const head = source.replace(/^allowBuilds:[^\n]*\n(?:[ \t]+[^\n]*\n?)*/m, '').trimEnd()
+  const updated = head ? `${head}\n\n${body}` : body
   const temporaryFile = `${workspaceFile}.tmp-${process.pid}`
   try {
     await writeFile(temporaryFile, updated, 'utf8')
@@ -302,7 +326,7 @@ const path = require('node:path')
     await rm(temporaryFile, { force: true })
     throw error
   }
-  console.log(JSON.stringify(merged))
+  console.log(JSON.stringify([...allowed].map(([key, value]) => value ? key : `${key}: false`)))
 })().catch((error) => {
   console.error(error)
   process.exit(1)
@@ -313,6 +337,10 @@ const path = require('node:path')
     try {
         $env:DSH_PROFILE_DIR = $ProfileDirectory
         $nodeScript | & node - @($keys)
+        if ($LASTEXITCODE -eq 3) {
+            # 本轮未解析到新的 allowBuilds 键，通知上层终止重试。
+            return $false
+        }
         if ($LASTEXITCODE -ne 0) {
             throw '写入 Desktop Profile 的 allowBuilds 白名单失败。'
         }
@@ -323,7 +351,93 @@ const path = require('node:path')
     return $true
 }
 
-# 执行一次插件卸载或安装；依赖构建被拦截时完成审批并仅重试原命令一次。
+# 确保 Desktop Profile 具备插件管理所需的骨架文件；桌面已建好的 profile 原样复用，
+# 全新环境按 Electron 侧初始化布局创建最小骨架（依赖清单、bundle 层栈与 pnpm 工作区）。
+function Initialize-ProfileLayout {
+    $manifestPath = Join-Path $ProfileDirectory 'package.json'
+    if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
+        return
+    }
+    New-Item -ItemType Directory -Path $ProfileDirectory -Force | Out-Null
+    $manifest = [ordered]@{
+        name = 'dsh-profile-desktop'
+        private = $true
+        dependencies = [ordered]@{}
+        dsh = [ordered]@{
+            profile = [ordered]@{
+                bundles = @('@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app')
+                patchReload = 'live'
+            }
+        }
+    }
+    Write-Utf8Json -LiteralPath $manifestPath -InputObject $manifest
+    $workspacePath = Join-Path $ProfileDirectory 'pnpm-workspace.yaml'
+    if (-not (Test-Path -LiteralPath $workspacePath -PathType Leaf)) {
+        $workspaceBody = "packages:`n  - .`n`nnodeLinker: hoisted`nautoInstallPeers: false`n"
+        [System.IO.File]::WriteAllText($workspacePath, $workspaceBody, [System.Text.UTF8Encoding]::new($false))
+    }
+    Write-InitLog '已初始化 Desktop Profile 骨架。'
+}
+
+# pnpm 操作完成后，将 dsh.profile.bundles 与依赖包的 dsh.bundle 声明状态对齐，
+# 与 dsh CLI 内置 reconcile 行为一致：声明 bundle 的依赖加入层栈，不再声明的移出；
+# 模板内置 bundle（非依赖项）保持原位不动。
+function Sync-ProfileBundles {
+    $syncScript = @'
+const { readFile, rename, rm, writeFile } = require('node:fs/promises')
+const path = require('node:path')
+
+;(async () => {
+  const profileDir = process.env.DSH_PROFILE_DIR
+  const manifestPath = path.join(profileDir, 'package.json')
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+  const dependencies = manifest.dependencies ?? {}
+  const previous = manifest.dsh?.profile?.bundles ?? []
+  const inBox = previous.filter((name) => !Object.hasOwn(dependencies, name))
+  const declared = []
+  for (const name of Object.keys(dependencies)) {
+    let pkg
+    try {
+      pkg = JSON.parse(await readFile(path.join(profileDir, 'node_modules', ...name.split('/'), 'package.json'), 'utf8'))
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error
+    }
+    if (pkg?.dsh?.bundle?.patch !== undefined) declared.push(name)
+  }
+  const merged = [...inBox, ...declared]
+  if (JSON.stringify(merged) === JSON.stringify(previous)) return
+  manifest.dsh = { ...manifest.dsh, profile: { ...manifest.dsh?.profile, bundles: merged } }
+  const temporaryFile = `${manifestPath}.tmp-${process.pid}`
+  try {
+    await writeFile(temporaryFile, JSON.stringify(manifest, null, 2) + '\n', 'utf8')
+    await rename(temporaryFile, manifestPath)
+  } catch (error) {
+    await rm(temporaryFile, { force: true })
+    throw error
+  }
+})().catch((error) => {
+  console.error(error)
+  process.exit(1)
+})
+'@
+    $previousProfile = $env:DSH_PROFILE_DIR
+    try {
+        $env:DSH_PROFILE_DIR = $ProfileDirectory
+        $syncScript | & node
+        if ($LASTEXITCODE -ne 0) {
+            throw '同步 Desktop Profile Bundle 列表失败。'
+        }
+    }
+    finally {
+        $env:DSH_PROFILE_DIR = $previousProfile
+    }
+}
+
+# 执行一次插件卸载或安装；依赖构建被拦截时解析输出、补充 allowBuilds 白名单并循环重试。
+# 每个被拦截的 git-hosted 包都会中断一次安装，上限 12 轮（超出插件总数），
+# 一轮未解析到新键即终止，避免死循环。
+# 0.1.5 起 dsh CLI 拒绝操作 desktop profile，插件管理改由脚本以桌面相同的方式
+# （pnpm 于 profile 目录内）完成。
 function Invoke-PluginOperation {
     param(
         [Parameter(Mandatory)][ValidateSet('add', 'remove')][string]$Action,
@@ -331,24 +445,24 @@ function Invoke-PluginOperation {
         [Parameter(Mandatory)][string[]]$Targets
     )
 
-    $arguments = @('plugin', '--profile', 'desktop', $Action) + $Targets
+    $arguments = @('--dir', $ProfileDirectory, $Action) + $Targets
+    $maxAttempts = 12
     Write-InitLog "正在$Label Desktop Profile 插件：$($Targets -join ', ')……"
-    $result = Invoke-CapturedCommand -FilePath 'dsh' -ArgumentList $arguments
-    if ($result.ExitCode -eq 0) {
-        Write-InitLog "已完成 Desktop Profile 插件$Label。"
-        return
-    }
-
-    if ($result.Output -match '(?i)pnpm\s+approve-builds|allowBuilds|ERR_PNPM_IGNORED_BUILDS') {
-        if (-not (Approve-PendingBuildsExceptCpuFeatures -Output $result.Output)) {
-            throw 'Desktop Profile 插件依赖构建审批失败。请查看上方 pnpm 输出。'
-        }
-        Write-InitLog "正在重试 Desktop Profile 插件$Label……"
-        $retryResult = Invoke-CapturedCommand -FilePath 'dsh' -ArgumentList $arguments
-        if ($retryResult.ExitCode -eq 0) {
+    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+        $result = Invoke-CapturedCommand -FilePath 'pnpm' -ArgumentList $arguments
+        if ($result.ExitCode -eq 0) {
+            Sync-ProfileBundles
             Write-InitLog "已完成 Desktop Profile 插件$Label。"
             return
         }
+
+        if ($result.Output -notmatch '(?i)ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED|ERR_PNPM_IGNORED_BUILDS|Ignored build scripts?') {
+            break
+        }
+        if (-not (Approve-PendingBuildsExceptCpuFeatures -Output $result.Output)) {
+            throw 'Desktop Profile 插件依赖构建白名单处理失败。请查看上方 pnpm 输出。'
+        }
+        Write-InitLog "正在重试 Desktop Profile 插件$Label（第 $attempt/$maxAttempts 轮）……"
     }
 
     throw "Desktop Profile 插件${Label}失败：$($Targets -join ', ')"
@@ -356,6 +470,7 @@ function Invoke-PluginOperation {
 
 # 先卸载所有已存在的目标或废弃插件，再按完整来源统一重新安装目标插件。
 function Install-DesktopPlugins {
+    Initialize-ProfileLayout
     $manifestPath = Join-Path $ProfileDirectory 'package.json'
     $dependencyNames = @()
     if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
@@ -426,7 +541,13 @@ const { pathToFileURL } = require('node:url')
         $env:DSH_CODEX_PRESET_ID = $previousPresetId
     }
     $profileManifestPath = Join-Path $ProfileDirectory 'package.json'
-    $profilePrefix = @(Get-Content -LiteralPath $profileManifestPath -Encoding Byte -TotalCount 3)
+    # pwsh 6+ 移除了 -Encoding Byte，改用 -AsByteStream；Windows PowerShell 5.1 保持原参数。
+    if ($PSVersionTable.PSVersion.Major -ge 6) {
+        $profilePrefix = @(Get-Content -LiteralPath $profileManifestPath -AsByteStream -TotalCount 3)
+    }
+    else {
+        $profilePrefix = @(Get-Content -LiteralPath $profileManifestPath -Encoding Byte -TotalCount 3)
+    }
     if ($profilePrefix.Count -eq 3 -and $profilePrefix[0] -eq 0xEF -and $profilePrefix[1] -eq 0xBB -and $profilePrefix[2] -eq 0xBF) {
         throw '验证失败，Desktop Profile manifest 包含 UTF-8 BOM。'
     }
