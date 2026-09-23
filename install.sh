@@ -61,6 +61,11 @@ readonly MINIMUM_RELEASE_AGE_EXCLUDES=(
   "@linxin666/dsh-client-ui-skin-center@0.3.9"
   "@linxin666/dsh-web-all@0.3.9"
 )
+# 需要在用户补丁层禁用的 web-all 聚合行：宠物与皮肤中心（格式：行id|包名）。
+readonly DISABLED_BUNDLE_ROWS=(
+  "web-ui-pet|@linxin666/dsh-pet"
+  "web-ui-skin-center|@linxin666/dsh-client-ui-skin-center"
+)
 
 TEMP_DIR=""
 SOURCE_DIR=""
@@ -304,6 +309,105 @@ install_plugins() {
   run_plugin_operation add "安装" "${PLUGIN_SOURCES[@]}"
 }
 
+# 通过 Profile 用户补丁层禁用 web-all 聚合的宠物与皮肤中心行，使其服务端与客户端均不加载。
+# 该文件是官方支持的 id 定向补丁层，独立于插件增删，重跑脚本时幂等合并不覆盖用户已有条目。
+disable_skin_and_pet_rows() {
+  [[ -d "${PROFILE_DIR}" ]] || fail "未找到 Desktop Profile 目录 ${PROFILE_DIR}。"
+  local patch_file="${PROFILE_DIR}/cordis.patch.yml"
+  local targets_json
+  targets_json="$(node -e '
+    const rows = process.argv.slice(1).map((row) => {
+      const separator = row.indexOf("|");
+      return { id: row.slice(0, separator), name: row.slice(separator + 1) };
+    });
+    process.stdout.write(JSON.stringify(rows));
+  ' "${DISABLED_BUNDLE_ROWS[@]}")" || fail "无法序列化待禁用的聚合插件行。"
+
+  DSH_PATCH_FILE="${patch_file}" DSH_YAML_MODULE="${YAML_MODULE}" DSH_DISABLE_TARGETS="${targets_json}" node --input-type=module <<'NODE' || fail "禁用皮肤中心与宠物插件失败。"
+import { readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
+import { pathToFileURL } from 'node:url'
+
+const patchFile = process.env.DSH_PATCH_FILE
+const yamlModule = process.env.DSH_YAML_MODULE
+const targets = JSON.parse(process.env.DSH_DISABLE_TARGETS)
+const require = createRequire(import.meta.url)
+const YAML = await import(pathToFileURL(require.resolve(yamlModule)).href)
+
+// 官方 profile 初始化生成的用户补丁层模板头，重建空层时保持文案一致。
+const LAYER_HEADER = [
+  '# Your patch layer for this dsh profile, applied after every bundle layer:',
+  '# a top-level YAML array of loader patch entries (id-targeted config',
+  '# overrides, disables, and insert lists; `!!js` expressions allowed).'
+].join('\n')
+
+// 原子写回补丁层，避免写入中断留下半份 YAML。
+async function writePatchLayer(content) {
+  const temporaryFile = `${patchFile}.tmp-${process.pid}`
+  try {
+    await writeFile(temporaryFile, content, { flag: 'wx', mode: 0o600 })
+    await rename(temporaryFile, patchFile)
+  } catch (error) {
+    await rm(temporaryFile, { force: true })
+    throw error
+  }
+}
+
+// 渲染包含全部禁用条目的完整补丁层内容，用于空层或缺失文件。
+function renderFullLayer() {
+  const rows = targets.map((target) => `- id: ${target.id}\n  name: '${target.name}'\n  disabled: true`)
+  return `${LAYER_HEADER}\n\n${rows.join('\n')}\n`
+}
+
+let source = ''
+try {
+  source = await readFile(patchFile, 'utf8')
+} catch (error) {
+  if (error?.code !== 'ENOENT') throw error
+}
+
+const rowsText = targets.map((target) => `- id: ${target.id}\n  name: '${target.name}'\n  disabled: true`).join('\n')
+let changed = false
+if (source.trim() === '') {
+  await writePatchLayer(renderFullLayer())
+  changed = true
+} else {
+  const document = YAML.parseDocument(source)
+  if (document.errors.length > 0) throw document.errors[0]
+  const entries = document.toJS()
+  if (entries == null) {
+    await writePatchLayer(renderFullLayer())
+    changed = true
+  } else if (!Array.isArray(entries)) {
+    throw new Error('用户补丁层顶层必须是 YAML 数组。')
+  } else if (entries.length === 0 && /\[\s*\]\s*$/.test(source)) {
+    // 未改动过的官方空层模板：仅把结尾的 [] 替换为块级禁用条目，保留全部注释。
+    await writePatchLayer(source.replace(/\[\s*\]\s*$/, `${rowsText}\n`))
+    changed = true
+  } else {
+    for (const target of targets) {
+      const index = entries.findIndex((entry) => entry?.id === target.id)
+      if (index === -1) {
+        document.contents.items.push(document.createNode({ id: target.id, name: target.name, disabled: true }))
+        changed = true
+        continue
+      }
+      if (entries[index].disabled !== true) {
+        // name 一并校正，避免遗留的错误 name 触发 loader 的名称校验使补丁被跳过。
+        document.setIn([index, 'name'], target.name)
+        document.setIn([index, 'disabled'], true)
+        changed = true
+      }
+    }
+    if (changed) await writePatchLayer(document.toString())
+  }
+}
+process.stdout.write(changed ? 'updated' : 'unchanged')
+NODE
+
+  log "已通过用户补丁层禁用皮肤中心与宠物插件。"
+}
+
 # 确保兼容层先于会调用新设置 API 的第三方聚合包加载。
 order_settings_compat_bundle() {
   DSH_PROFILE_DIR="${PROFILE_DIR}" node --input-type=module <<'NODE' || fail "无法调整设置兼容插件的加载顺序。"
@@ -394,6 +498,43 @@ NODE
   log "文件、默认 Agent 预设与 Desktop Profile 插件验证通过。"
 }
 
+# 导出组合树并断言皮肤中心与宠物行确已禁用，防止补丁条目因行 id 变更或被移除而静默失效。
+verify_skin_and_pet_disabled() {
+  local dump_file="${TEMP_DIR}/profile-dump.yml"
+  dsh --profile desktop --dump-config >"${dump_file}" 2>/dev/null \
+    || fail "无法导出 Desktop Profile 组合树。"
+
+  DSH_DUMP_FILE="${dump_file}" DSH_YAML_MODULE="${YAML_MODULE}" node --input-type=module - "${DISABLED_BUNDLE_ROWS[@]}" <<'NODE' || fail "验证失败，皮肤中心或宠物插件未在 Desktop Profile 组合树中禁用。"
+import { readFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
+import { pathToFileURL } from 'node:url'
+
+const dumpFile = process.env.DSH_DUMP_FILE
+const rows = process.argv.slice(2).map((row) => {
+  const separator = row.indexOf('|')
+  return { id: row.slice(0, separator), name: row.slice(separator + 1) }
+})
+const require = createRequire(import.meta.url)
+const YAML = await import(pathToFileURL(require.resolve(process.env.DSH_YAML_MODULE)).href)
+const source = await readFile(dumpFile, 'utf8')
+// dump-config 可能输出多个 YAML 文档，逐个解析后取全部顶层数组条目。
+const entries = YAML.parseAllDocuments(source)
+  .filter((document) => document.errors.length === 0)
+  .map((document) => document.toJS())
+  .filter(Array.isArray)
+  .flat()
+const missing = rows.filter((target) => {
+  const entry = entries.find((item) => item?.id === target.id)
+  return entry?.disabled !== true
+})
+if (missing.length > 0) {
+  throw new Error(`组合树缺少禁用行：${missing.map((row) => row.id).join(', ')}`)
+}
+NODE
+
+  log "已验证皮肤中心与宠物插件在组合树中禁用。"
+}
+
 # 按固定顺序执行初始化流程，确保失败时立即停止后续关键步骤。
 main() {
   trap cleanup EXIT
@@ -407,8 +548,10 @@ main() {
   set_default_agent_preset
   add_minimum_release_age_excludes
   install_plugins
+  disable_skin_and_pet_rows
   order_settings_compat_bundle
   verify_installation
+  verify_skin_and_pet_disabled
 
   log "初始化完成。首次使用 gpt-image-generator 时，Skill 会自动检测并询问缺失配置。请完全退出并重新启动 DSH Desktop。"
 }

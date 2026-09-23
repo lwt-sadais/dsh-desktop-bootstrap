@@ -45,6 +45,15 @@ $MinimumReleaseAgeExcludes = @(
     '@linxin666/dsh-client-ui-skin-center@0.3.9',
     '@linxin666/dsh-web-all@0.3.9'
 )
+# 需要在用户补丁层禁用的 web-all 聚合行：宠物与皮肤中心。
+$DisabledBundleRows = @(
+    [pscustomobject]@{ Id = 'web-ui-pet'; Name = '@linxin666/dsh-pet' },
+    [pscustomobject]@{ Id = 'web-ui-skin-center'; Name = '@linxin666/dsh-client-ui-skin-center' }
+)
+# 供 node 脚本使用的 JSON 形式，禁用写入与组合树校验共用同一份定义。
+$DisabledBundleRowsJson = '[' + ((@($DisabledBundleRows) | ForEach-Object {
+    '{"id":' + ($_.Id | ConvertTo-Json) + ',"name":' + ($_.Name | ConvertTo-Json) + '}'
+}) -join ',') + ']'
 $script:TempDirectory = $null
 $script:SourceDirectory = $null
 $script:YamlModule = $null
@@ -405,6 +414,119 @@ function Install-DesktopPlugins {
     Invoke-PluginOperation -Action 'add' -Label '安装' -Targets $installSources
 }
 
+# 通过 Profile 用户补丁层禁用 web-all 聚合的宠物与皮肤中心行，使其服务端与客户端均不加载。
+# 该文件是官方支持的 id 定向补丁层，独立于插件增删，重跑脚本时幂等合并不覆盖用户已有条目。
+function Disable-SkinAndPetRows {
+    if (-not (Test-Path -LiteralPath $ProfileDirectory -PathType Container)) {
+        throw "未找到 Desktop Profile 目录 $ProfileDirectory。"
+    }
+    $patchFile = Join-Path $ProfileDirectory 'cordis.patch.yml'
+
+    $nodeScript = @'
+const { readFile, rename, rm, writeFile } = require('node:fs/promises')
+const { pathToFileURL } = require('node:url')
+
+;(async () => {
+  const patchFile = process.env.DSH_PATCH_FILE
+  const yamlModule = process.env.DSH_YAML_MODULE
+  const targets = JSON.parse(process.env.DSH_DISABLE_TARGETS)
+  const { parseDocument } = await import(pathToFileURL(require.resolve(yamlModule)).href)
+
+  // 官方 profile 初始化生成的用户补丁层模板头，重建空层时保持文案一致。
+  const layerHeader = [
+    '# Your patch layer for this dsh profile, applied after every bundle layer:',
+    '# a top-level YAML array of loader patch entries (id-targeted config',
+    '# overrides, disables, and insert lists; `!!js` expressions allowed).'
+  ].join('\n')
+
+  // 原子写回补丁层，避免写入中断留下半份 YAML。
+  async function writePatchLayer(content) {
+    const temporaryFile = `${patchFile}.tmp-${process.pid}`
+    try {
+      await writeFile(temporaryFile, content, { flag: 'wx' })
+      await rename(temporaryFile, patchFile)
+    } catch (error) {
+      await rm(temporaryFile, { force: true })
+      throw error
+    }
+  }
+
+  // 渲染包含全部禁用条目的完整补丁层内容，用于空层或缺失文件。
+  function renderFullLayer() {
+    const rows = targets.map((target) => `- id: ${target.id}\n  name: '${target.name}'\n  disabled: true`)
+    return `${layerHeader}\n\n${rows.join('\n')}\n`
+  }
+
+  let source = ''
+  try {
+    source = await readFile(patchFile, 'utf8')
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error
+  }
+
+  const rowsText = targets.map((target) => `- id: ${target.id}\n  name: '${target.name}'\n  disabled: true`).join('\n')
+  let changed = false
+  if (source.trim() === '') {
+    await writePatchLayer(renderFullLayer())
+    changed = true
+  } else {
+    const document = parseDocument(source)
+    if (document.errors.length > 0) throw document.errors[0]
+    const entries = document.toJS()
+    if (entries == null) {
+      await writePatchLayer(renderFullLayer())
+      changed = true
+    } else if (!Array.isArray(entries)) {
+      throw new Error('用户补丁层顶层必须是 YAML 数组。')
+    } else if (entries.length === 0 && /\[\s*\]\s*$/.test(source)) {
+      // 未改动过的官方空层模板：仅把结尾的 [] 替换为块级禁用条目，保留全部注释。
+      await writePatchLayer(source.replace(/\[\s*\]\s*$/, `${rowsText}\n`))
+      changed = true
+    } else {
+      for (const target of targets) {
+        const index = entries.findIndex((entry) => entry?.id === target.id)
+        if (index === -1) {
+          document.contents.items.push(document.createNode({ id: target.id, name: target.name, disabled: true }))
+          changed = true
+          continue
+        }
+        if (entries[index].disabled !== true) {
+          // name 一并校正，避免遗留的错误 name 触发 loader 的名称校验使补丁被跳过。
+          document.setIn([index, 'name'], target.name)
+          document.setIn([index, 'disabled'], true)
+          changed = true
+        }
+      }
+      if (changed) await writePatchLayer(document.toString())
+    }
+  }
+  process.stdout.write(changed ? 'updated' : 'unchanged')
+})().catch((error) => {
+  console.error(error)
+  process.exit(1)
+})
+'@
+
+    $previousPatchFile = $env:DSH_PATCH_FILE
+    $previousYamlModule = $env:DSH_YAML_MODULE
+    $previousTargets = $env:DSH_DISABLE_TARGETS
+    try {
+        $env:DSH_PATCH_FILE = $patchFile
+        $env:DSH_YAML_MODULE = $script:YamlModule
+        $env:DSH_DISABLE_TARGETS = $DisabledBundleRowsJson
+        $nodeScript | & node
+        if ($LASTEXITCODE -ne 0) {
+            throw '禁用皮肤中心与宠物插件失败。'
+        }
+    }
+    finally {
+        $env:DSH_PATCH_FILE = $previousPatchFile
+        $env:DSH_YAML_MODULE = $previousYamlModule
+        $env:DSH_DISABLE_TARGETS = $previousTargets
+    }
+    Write-InitLog '已通过用户补丁层禁用皮肤中心与宠物插件。'
+}
+
 # 确保兼容层先于会调用新设置 API 的第三方聚合包加载。
 function Set-SettingsCompatBundleOrder {
     $manifestPath = Join-Path $ProfileDirectory 'package.json'
@@ -533,6 +655,71 @@ const { pathToFileURL } = require('node:url')
     Write-InitLog '文件、默认 Agent 预设与 Desktop Profile 插件验证通过。'
 }
 
+# 导出组合树并断言皮肤中心与宠物行确已禁用，防止补丁条目因行 id 变更或被移除而静默失效。
+function Test-SkinAndPetDisabled {
+    $dumpPath = Join-Path $script:TempDirectory 'profile-dump.yml'
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        # 与 Invoke-CapturedCommand 一致：捕获原生命令输出期间允许错误流继续。
+        $ErrorActionPreference = 'Continue'
+        $dumpOutput = @(& dsh --profile desktop --dump-config 2>$null | ForEach-Object { $_.ToString() })
+        if ($LASTEXITCODE -ne 0) {
+            throw '无法导出 Desktop Profile 组合树。'
+        }
+        [System.IO.File]::WriteAllText($dumpPath, ($dumpOutput -join [Environment]::NewLine) + [Environment]::NewLine, [System.Text.UTF8Encoding]::new($false))
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    $verifyScript = @'
+const { readFile } = require('node:fs/promises')
+const { pathToFileURL } = require('node:url')
+
+;(async () => {
+  const dumpFile = process.env.DSH_DUMP_FILE
+  const rows = JSON.parse(process.env.DSH_DISABLE_TARGETS)
+  const { parseAllDocuments } = await import(pathToFileURL(require.resolve(process.env.DSH_YAML_MODULE)).href)
+  const source = await readFile(dumpFile, 'utf8')
+  // dump-config 可能输出多个 YAML 文档，逐个解析后取全部顶层数组条目。
+  const entries = parseAllDocuments(source)
+    .filter((document) => document.errors.length === 0)
+    .map((document) => document.toJS())
+    .filter(Array.isArray)
+    .flat()
+  const missing = rows.filter((target) => {
+    const entry = entries.find((item) => item?.id === target.id)
+    return entry?.disabled !== true
+  })
+  if (missing.length > 0) {
+    throw new Error(`组合树缺少禁用行：${missing.map((row) => row.id).join(', ')}`)
+  }
+})().catch((error) => {
+  console.error(error)
+  process.exit(1)
+})
+'@
+
+    $previousDumpFile = $env:DSH_DUMP_FILE
+    $previousYamlModule = $env:DSH_YAML_MODULE
+    $previousTargets = $env:DSH_DISABLE_TARGETS
+    try {
+        $env:DSH_DUMP_FILE = $dumpPath
+        $env:DSH_YAML_MODULE = $script:YamlModule
+        $env:DSH_DISABLE_TARGETS = $DisabledBundleRowsJson
+        $verifyScript | & node
+        if ($LASTEXITCODE -ne 0) {
+            throw '验证失败，皮肤中心或宠物插件未在 Desktop Profile 组合树中禁用。'
+        }
+    }
+    finally {
+        $env:DSH_DUMP_FILE = $previousDumpFile
+        $env:DSH_YAML_MODULE = $previousYamlModule
+        $env:DSH_DISABLE_TARGETS = $previousTargets
+    }
+    Write-InitLog '已验证皮肤中心与宠物插件在组合树中禁用。'
+}
+
 # 删除本次下载产生的临时目录，不保留初始化中间文件。
 function Remove-TemporaryFiles {
     if ($script:TempDirectory -and (Test-Path -LiteralPath $script:TempDirectory)) {
@@ -553,8 +740,10 @@ function Start-Initialization {
         Set-DefaultAgentPreset
         Add-MinimumReleaseAgeExcludes
         Install-DesktopPlugins
+        Disable-SkinAndPetRows
         Set-SettingsCompatBundleOrder
         Test-Installation
+        Test-SkinAndPetDisabled
         Write-InitLog '初始化完成。首次使用 gpt-image-generator 时，Skill 会自动检测并询问缺失配置。请完全退出并重新启动 DSH Desktop。'
     }
     finally {
