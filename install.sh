@@ -61,10 +61,19 @@ readonly MINIMUM_RELEASE_AGE_EXCLUDES=(
   "@linxin666/dsh-client-ui-skin-center@0.3.9"
   "@linxin666/dsh-web-all@0.3.9"
 )
-# 需要在用户补丁层禁用的 web-all 聚合行：宠物与皮肤中心（格式：行id|包名）。
+# 需要在用户补丁层禁用的 web-all 聚合行：宠物、皮肤中心与创意工坊（格式：行id|包名）。
 readonly DISABLED_BUNDLE_ROWS=(
   "web-ui-pet|@linxin666/dsh-pet"
   "web-ui-skin-center|@linxin666/dsh-client-ui-skin-center"
+  "web-ui-market|@linxin666/dsh-client-ui-market"
+)
+# 需要在 settings.yaml 强制写入的默认偏好（格式：键路径.键名|值），写入与验证共用同一份定义。
+readonly DEFAULT_PREFERENCES=(
+  "agent-presets.default|codex-mode"
+  "remote-web-ui.enabled|false"
+  "desktop-launcher.enabled|true"
+  "desktop-launcher.confirmShutdown|false"
+  "permission.defaultPreset|danger-full-access"
 )
 
 TEMP_DIR=""
@@ -97,6 +106,20 @@ check_prerequisites() {
   done
 
   command -v dsh >/dev/null 2>&1 || fail "当前终端无法执行 dsh。请启动 DSH Desktop，从应用内打开 DSH Desktop 专用终端，再在该终端中重新执行本命令；普通系统终端无法直接使用 dsh。"
+}
+
+# 将"键路径.键名|值"行序列化为 node 可用的 JSON；true/false 转布尔，其余按字符串处理。
+serialize_preferences() {
+  node -e '
+    const rows = process.argv.slice(1).map((row) => {
+      const separator = row.indexOf("|");
+      const path = row.slice(0, separator).split(".");
+      const raw = row.slice(separator + 1);
+      const value = raw === "true" ? true : raw === "false" ? false : raw;
+      return { path, value };
+    });
+    process.stdout.write(JSON.stringify(rows));
+  ' "$@"
 }
 
 # 兼容 Desktop 2.0.1 的 Profile 依赖布局和 2.0.2 起由桌面应用提供依赖的布局。
@@ -170,17 +193,20 @@ install_agent_presets() {
   log "已安装 Codex 模式。"
 }
 
-# 保留其余用户设置，仅将新会话的默认 Agent 预设设为 Codex 模式。
-set_default_agent_preset() {
+# 保留其余用户设置，按声明式清单强制写入默认偏好（默认预设、远程访问、桌面启动器、权限预设）。
+set_default_preferences() {
   mkdir -p "${DSH_HOME}" || fail "无法创建 ${DSH_HOME}。"
-  DSH_SETTINGS_FILE="${SETTINGS_FILE}" DSH_YAML_MODULE="${YAML_MODULE}" DSH_CODEX_PRESET_ID="${CODEX_PRESET_ID}" node --input-type=module <<'NODE' || fail "设置默认 Agent 预设失败。"
+  local preferences_json
+  preferences_json="$(serialize_preferences "${DEFAULT_PREFERENCES[@]}")" || fail "无法序列化默认偏好设置。"
+
+  DSH_SETTINGS_FILE="${SETTINGS_FILE}" DSH_YAML_MODULE="${YAML_MODULE}" DSH_PREFERENCE_TARGETS="${preferences_json}" node --input-type=module <<'NODE' || fail "写入默认偏好设置失败。"
 import { readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 
 const settingsFile = process.env.DSH_SETTINGS_FILE
 const yamlModule = process.env.DSH_YAML_MODULE
-const presetId = process.env.DSH_CODEX_PRESET_ID
+const preferences = JSON.parse(process.env.DSH_PREFERENCE_TARGETS)
 const require = createRequire(import.meta.url)
 const { parseDocument } = await import(pathToFileURL(require.resolve(yamlModule)).href)
 let source = ''
@@ -191,7 +217,10 @@ try {
 }
 const document = parseDocument(source)
 if (document.errors.length > 0) throw document.errors[0]
-document.setIn(['agent-presets', 'default'], presetId)
+for (const preference of preferences) {
+  // setIn 对不存在的中间键会自动创建，全新 settings.yaml 同样适用。
+  document.setIn(preference.path, preference.value)
+}
 const temporaryFile = `${settingsFile}.tmp-${process.pid}`
 try {
   await writeFile(temporaryFile, document.toString(), { flag: 'wx', mode: 0o600 })
@@ -202,7 +231,7 @@ try {
 }
 NODE
   chmod 0600 "${SETTINGS_FILE}" || fail "设置 ${SETTINGS_FILE} 权限失败。"
-  log "已将默认 Agent 预设设为 Codex 模式。"
+  log "已写入默认偏好设置（远程访问关闭、桌面启动器开启、完全权限）。"
 }
 
 # 将已核对的 Web UI 精确版本加入最短发布时间豁免，同时保留用户已有配置。
@@ -309,9 +338,9 @@ install_plugins() {
   run_plugin_operation add "安装" "${PLUGIN_SOURCES[@]}"
 }
 
-# 通过 Profile 用户补丁层禁用 web-all 聚合的宠物与皮肤中心行，使其服务端与客户端均不加载。
+# 通过 Profile 用户补丁层禁用 web-all 聚合行，使其服务端与客户端均不加载。
 # 该文件是官方支持的 id 定向补丁层，独立于插件增删，重跑脚本时幂等合并不覆盖用户已有条目。
-disable_skin_and_pet_rows() {
+disable_web_all_rows() {
   [[ -d "${PROFILE_DIR}" ]] || fail "未找到 Desktop Profile 目录 ${PROFILE_DIR}。"
   local patch_file="${PROFILE_DIR}/cordis.patch.yml"
   local targets_json
@@ -323,7 +352,7 @@ disable_skin_and_pet_rows() {
     process.stdout.write(JSON.stringify(rows));
   ' "${DISABLED_BUNDLE_ROWS[@]}")" || fail "无法序列化待禁用的聚合插件行。"
 
-  DSH_PATCH_FILE="${patch_file}" DSH_YAML_MODULE="${YAML_MODULE}" DSH_DISABLE_TARGETS="${targets_json}" node --input-type=module <<'NODE' || fail "禁用皮肤中心与宠物插件失败。"
+  DSH_PATCH_FILE="${patch_file}" DSH_YAML_MODULE="${YAML_MODULE}" DSH_DISABLE_TARGETS="${targets_json}" node --input-type=module <<'NODE' || fail "禁用 web-all 聚合插件行失败。"
 import { readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
@@ -405,7 +434,7 @@ if (source.trim() === '') {
 process.stdout.write(changed ? 'updated' : 'unchanged')
 NODE
 
-  log "已通过用户补丁层禁用皮肤中心与宠物插件。"
+  log "已通过用户补丁层禁用 web-all 聚合插件行。"
 }
 
 # 确保兼容层先于会调用新设置 API 的第三方聚合包加载。
@@ -450,7 +479,10 @@ verify_installation() {
     [[ -f "${required_path}" ]] || fail "验证失败，未找到 ${required_path}。"
   done
 
-  DSH_SETTINGS_FILE="${SETTINGS_FILE}" DSH_YAML_MODULE="${YAML_MODULE}" DSH_CODEX_PRESET_ID="${CODEX_PRESET_ID}" node --input-type=module <<'NODE' || fail "验证失败，默认 Agent 预设不是 Codex 模式。"
+  local preferences_json
+  preferences_json="$(serialize_preferences "${DEFAULT_PREFERENCES[@]}")" || fail "无法序列化默认偏好设置。"
+
+  DSH_SETTINGS_FILE="${SETTINGS_FILE}" DSH_YAML_MODULE="${YAML_MODULE}" DSH_PREFERENCE_TARGETS="${preferences_json}" node --input-type=module <<'NODE' || fail "验证失败，默认偏好设置写入不完整。"
 import { readFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
@@ -458,7 +490,19 @@ import { pathToFileURL } from 'node:url'
 const require = createRequire(import.meta.url)
 const { parse } = await import(pathToFileURL(require.resolve(process.env.DSH_YAML_MODULE)).href)
 const settings = parse(await readFile(process.env.DSH_SETTINGS_FILE, 'utf8'))
-if (settings?.['agent-presets']?.default !== process.env.DSH_CODEX_PRESET_ID) process.exit(1)
+const preferences = JSON.parse(process.env.DSH_PREFERENCE_TARGETS)
+for (const preference of preferences) {
+  let actual = settings
+  for (const key of preference.path) {
+    // 逐层下钻；typeof null 也是 object，必须先用 == null 拦截。
+    if (actual == null || typeof actual !== 'object') {
+      actual = undefined
+      break
+    }
+    actual = actual[key]
+  }
+  if (actual !== preference.value) process.exit(1)
+}
 NODE
 
   DSH_PROFILE_DIR="${PROFILE_DIR}" node --input-type=module - "${PLUGIN_NAMES[@]}" <<'NODE' || fail "验证失败，Desktop Profile 插件声明或安装产物不完整。"
@@ -498,13 +542,13 @@ NODE
   log "文件、默认 Agent 预设与 Desktop Profile 插件验证通过。"
 }
 
-# 导出组合树并断言皮肤中心与宠物行确已禁用，防止补丁条目因行 id 变更或被移除而静默失效。
-verify_skin_and_pet_disabled() {
+# 导出组合树并断言全部禁用行确已生效，防止补丁条目因行 id 变更或被移除而静默失效。
+verify_disabled_bundle_rows() {
   local dump_file="${TEMP_DIR}/profile-dump.yml"
   dsh --profile desktop --dump-config >"${dump_file}" 2>/dev/null \
     || fail "无法导出 Desktop Profile 组合树。"
 
-  DSH_DUMP_FILE="${dump_file}" DSH_YAML_MODULE="${YAML_MODULE}" node --input-type=module - "${DISABLED_BUNDLE_ROWS[@]}" <<'NODE' || fail "验证失败，皮肤中心或宠物插件未在 Desktop Profile 组合树中禁用。"
+  DSH_DUMP_FILE="${dump_file}" DSH_YAML_MODULE="${YAML_MODULE}" node --input-type=module - "${DISABLED_BUNDLE_ROWS[@]}" <<'NODE' || fail "验证失败，存在未在 Desktop Profile 组合树中禁用的聚合行。"
 import { readFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
@@ -532,7 +576,7 @@ if (missing.length > 0) {
 }
 NODE
 
-  log "已验证皮肤中心与宠物插件在组合树中禁用。"
+  log "已验证 web-all 聚合禁用行在组合树中生效。"
 }
 
 # 按固定顺序执行初始化流程，确保失败时立即停止后续关键步骤。
@@ -545,13 +589,13 @@ main() {
   install_skills
   install_settings_compat_plugin
   install_agent_presets
-  set_default_agent_preset
+  set_default_preferences
   add_minimum_release_age_excludes
   install_plugins
-  disable_skin_and_pet_rows
+  disable_web_all_rows
   order_settings_compat_bundle
   verify_installation
-  verify_skin_and_pet_disabled
+  verify_disabled_bundle_rows
 
   log "初始化完成。首次使用 gpt-image-generator 时，Skill 会自动检测并询问缺失配置。请完全退出并重新启动 DSH Desktop。"
 }

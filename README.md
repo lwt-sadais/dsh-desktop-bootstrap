@@ -29,6 +29,7 @@
 ## 前置条件
 
 - 已安装并启动 DSH Desktop。
+- 本仓库搭配 [DSH Desktop 2.0.5](https://github.com/anywhere-labs/dsh-desktop/releases/download/v2.0.5/DSH.Desktop-2.0.5-universal.dmg) 使用，请下载并安装该版本。
 - 必须从 DSH Desktop 应用内打开其专用终端；普通 macOS 终端或普通 Windows PowerShell 无法直接识别 `dsh`。
 - 手动安装时需使用 Git 克隆本仓库；一键初始化脚本不依赖本机 Git。
 - 安装 GitHub 插件时需要能够访问 GitHub。
@@ -71,9 +72,10 @@ irm "https://raw.githubusercontent.com/lwt-sadais/dsh-desktop-bootstrap/main/ins
 - `~/.dsh/AGENTS.md` 已存在时直接覆盖安装，不保留备份；如需保留自定义内容请自行提前备份。
 - Skills 采用合并安装，不会删除用户已有的其他 Skill，也不会创建或覆盖私密 `.env`。
 - Codex 模式安装到 `~/.dsh/.agent-presets/codex-mode`；已存在同名文件或目录时整体删除后安装仓库版本，不保留备份。
-- 脚本会保留 `~/.dsh/settings.yaml` 中的其他设置，只写入 `agent-presets.default: codex-mode`；此设置影响此后新建的会话，不切换已运行会话的模式。
+- 脚本会保留 `~/.dsh/settings.yaml` 中的其他设置，每次运行强制写入五个默认偏好键：`agent-presets.default: codex-mode`、`remote-web-ui.enabled: false`（关闭远程访问）、`desktop-launcher.enabled: true` 与 `desktop-launcher.confirmShutdown: false`（桌面启动器开启且退出前不弹确认）、`permission.defaultPreset: danger-full-access`（新会话默认完全权限）；默认模式影响此后新建的会话，不切换已运行会话。
 - 首次请求生成图片时，`gpt-image-generator` 会运行配置检查，并通过交互提问仅收集缺失配置；已有配置不会要求重复输入。
 - 脚本会先批量卸载 Desktop Profile 中已存在的目标插件及废弃插件，再按完整来源通过一条 `dsh plugin add` 命令统一重新安装。该逻辑面向 DSH Desktop 内置 Harness `0.1.2-alpha.1`；其中 `dsh-plan-review-card` 会让主 Agent 通过 `present_result_card` 输出可审查的结构化卡片，子 Agent 不触发人工审查；点击卡片会自动展开统一侧边栏并展示完整内容，同时保持会话和输入框可操作，并支持摘要审查、批准、拒绝、取消、批注调整、复制和 Markdown 导出。
+- 脚本会通过 Desktop Profile 的用户补丁层（`~/.dsh/profiles/desktop/cordis.patch.yml`）禁用 web-all 聚合的宠物、皮肤中心与创意工坊行，使其服务端与客户端均不加载；补丁层按行 id 幂等合并，保留用户已有条目，重跑脚本时补齐缺失禁用行。
 - 脚本安装 `@linxin666/dsh-web-all@0.3.9` 作为 Web UI 聚合包，并先挂载仓库内置的 `dsh-settings-alpha1-compat`，为 Desktop 当前内置 Harness `0.1.2-alpha.1` 补齐第三方插件使用的 `settings.installSection` API；该兼容层在未来 Host 原生提供方法时自动跳过。脚本同时把 [`lwt-sadais/DSH-better-sidebar`](https://github.com/lwt-sadais/DSH-better-sidebar) 的固定适配提交作为同名顶层插件。该提交已包含通过验证的构建产物，不依赖已下架的 alpha.1 开发包执行现场构建；Fork 自带聚合重复挂载保护，因此运行时仍只有一个侧边栏实例。
 - DSH 的 pnpm 默认拒绝发布不足 24 小时的依赖。脚本会保留用户已有策略，仅将 Web UI 0.3.9 聚合包及其 17 个精确 `@linxin666/*@0.3.9` 依赖合并到 Desktop Profile 的 `minimumReleaseAgeExclude`；不会使用通配符、关闭 `minimumReleaseAge`，也不会通过 `--trust-lockfile` 跳过锁文件校验。
 - 脚本同时安装上游原版 `dsh-free-search@0.4.24`，为内置 `web_search` 提供多引擎免费搜索 provider（DuckDuckGo、Bing、SearXNG 等，无需 API key），注册进 Harness `ctx.web` seam，与官方 provider 共存；其网页设置页依赖 `dsh-settings-alpha1-compat` 补齐的 settings API，作者未在 `0.1.2-alpha.1` 上验证该插件。

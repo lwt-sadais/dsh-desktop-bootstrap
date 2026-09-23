@@ -45,14 +45,28 @@ $MinimumReleaseAgeExcludes = @(
     '@linxin666/dsh-client-ui-skin-center@0.3.9',
     '@linxin666/dsh-web-all@0.3.9'
 )
-# 需要在用户补丁层禁用的 web-all 聚合行：宠物与皮肤中心。
+# 需要在用户补丁层禁用的 web-all 聚合行：宠物、皮肤中心与创意工坊。
 $DisabledBundleRows = @(
     [pscustomobject]@{ Id = 'web-ui-pet'; Name = '@linxin666/dsh-pet' },
-    [pscustomobject]@{ Id = 'web-ui-skin-center'; Name = '@linxin666/dsh-client-ui-skin-center' }
+    [pscustomobject]@{ Id = 'web-ui-skin-center'; Name = '@linxin666/dsh-client-ui-skin-center' },
+    [pscustomobject]@{ Id = 'web-ui-market'; Name = '@linxin666/dsh-client-ui-market' }
 )
 # 供 node 脚本使用的 JSON 形式，禁用写入与组合树校验共用同一份定义。
 $DisabledBundleRowsJson = '[' + ((@($DisabledBundleRows) | ForEach-Object {
     '{"id":' + ($_.Id | ConvertTo-Json) + ',"name":' + ($_.Name | ConvertTo-Json) + '}'
+}) -join ',') + ']'
+# 需要在 settings.yaml 强制写入的默认偏好：键路径（点分）与目标值，写入与验证共用同一份定义。
+$DefaultPreferences = @(
+    [pscustomobject]@{ Path = 'agent-presets.default'; Value = 'codex-mode' },
+    [pscustomobject]@{ Path = 'remote-web-ui.enabled'; Value = $false },
+    [pscustomobject]@{ Path = 'desktop-launcher.enabled'; Value = $true },
+    [pscustomobject]@{ Path = 'desktop-launcher.confirmShutdown'; Value = $false },
+    [pscustomobject]@{ Path = 'permission.defaultPreset'; Value = 'danger-full-access' }
+)
+# 供 node 脚本使用的 JSON 形式：路径拆分为数组，true/false 保持布尔类型。
+# Path 是字符串数组，必须用 -InputObject 传参，管道会把数组展开成多个元素。
+$DefaultPreferencesJson = '[' + ((@($DefaultPreferences) | ForEach-Object {
+    '{"path":' + (ConvertTo-Json -InputObject $_.Path.Split('.') -Compress) + ',"value":' + (ConvertTo-Json -InputObject $_.Value -Compress) + '}'
 }) -join ',') + ']'
 $script:TempDirectory = $null
 $script:SourceDirectory = $null
@@ -160,8 +174,8 @@ function Install-AgentPresets {
     Write-InitLog '已安装 Codex 模式。'
 }
 
-# 保留其余用户设置，仅将新会话的默认 Agent 预设设为 Codex 模式。
-function Set-DefaultAgentPreset {
+# 保留其余用户设置，按声明式清单强制写入默认偏好（默认预设、远程访问、桌面启动器、权限预设）。
+function Set-DefaultPreferences {
     New-Item -ItemType Directory -Path $DshHome -Force | Out-Null
 
     $nodeScript = @'
@@ -171,7 +185,7 @@ const { pathToFileURL } = require('node:url')
 ;(async () => {
   const settingsFile = process.env.DSH_SETTINGS_FILE
   const yamlModule = process.env.DSH_YAML_MODULE
-  const presetId = process.env.DSH_CODEX_PRESET_ID
+  const preferences = JSON.parse(process.env.DSH_PREFERENCE_TARGETS)
   const { parseDocument } = await import(pathToFileURL(require.resolve(yamlModule)).href)
   let source = ''
   try {
@@ -181,7 +195,10 @@ const { pathToFileURL } = require('node:url')
   }
   const document = parseDocument(source)
   if (document.errors.length > 0) throw document.errors[0]
-  document.setIn(['agent-presets', 'default'], presetId)
+  for (const preference of preferences) {
+    // setIn 对不存在的中间键会自动创建，全新 settings.yaml 同样适用。
+    document.setIn(preference.path, preference.value)
+  }
   const temporaryFile = `${settingsFile}.tmp-${process.pid}`
   try {
     await writeFile(temporaryFile, document.toString(), { flag: 'wx', mode: 0o600 })
@@ -198,22 +215,22 @@ const { pathToFileURL } = require('node:url')
 
     $previousSettingsFile = $env:DSH_SETTINGS_FILE
     $previousYamlModule = $env:DSH_YAML_MODULE
-    $previousPresetId = $env:DSH_CODEX_PRESET_ID
+    $previousTargets = $env:DSH_PREFERENCE_TARGETS
     try {
         $env:DSH_SETTINGS_FILE = $SettingsFile
         $env:DSH_YAML_MODULE = $script:YamlModule
-        $env:DSH_CODEX_PRESET_ID = $CodexPresetId
+        $env:DSH_PREFERENCE_TARGETS = $DefaultPreferencesJson
         $nodeScript | & node
         if ($LASTEXITCODE -ne 0) {
-            throw '设置默认 Agent 预设失败。'
+            throw '写入默认偏好设置失败。'
         }
     }
     finally {
         $env:DSH_SETTINGS_FILE = $previousSettingsFile
         $env:DSH_YAML_MODULE = $previousYamlModule
-        $env:DSH_CODEX_PRESET_ID = $previousPresetId
+        $env:DSH_PREFERENCE_TARGETS = $previousTargets
     }
-    Write-InitLog '已将默认 Agent 预设设为 Codex 模式。'
+    Write-InitLog '已写入默认偏好设置（远程访问关闭、桌面启动器开启、完全权限）。'
 }
 
 # 始终按 UTF-8 读取 JSON，避免 Windows PowerShell 5.1 使用系统 ANSI 代码页。
@@ -414,9 +431,9 @@ function Install-DesktopPlugins {
     Invoke-PluginOperation -Action 'add' -Label '安装' -Targets $installSources
 }
 
-# 通过 Profile 用户补丁层禁用 web-all 聚合的宠物与皮肤中心行，使其服务端与客户端均不加载。
+# 通过 Profile 用户补丁层禁用 web-all 聚合行，使其服务端与客户端均不加载。
 # 该文件是官方支持的 id 定向补丁层，独立于插件增删，重跑脚本时幂等合并不覆盖用户已有条目。
-function Disable-SkinAndPetRows {
+function Disable-WebAllBundleRows {
     if (-not (Test-Path -LiteralPath $ProfileDirectory -PathType Container)) {
         throw "未找到 Desktop Profile 目录 $ProfileDirectory。"
     }
@@ -516,7 +533,7 @@ const { pathToFileURL } = require('node:url')
         $env:DSH_DISABLE_TARGETS = $DisabledBundleRowsJson
         $nodeScript | & node
         if ($LASTEXITCODE -ne 0) {
-            throw '禁用皮肤中心与宠物插件失败。'
+            throw '禁用 web-all 聚合插件行失败。'
         }
     }
     finally {
@@ -524,7 +541,7 @@ const { pathToFileURL } = require('node:url')
         $env:DSH_YAML_MODULE = $previousYamlModule
         $env:DSH_DISABLE_TARGETS = $previousTargets
     }
-    Write-InitLog '已通过用户补丁层禁用皮肤中心与宠物插件。'
+    Write-InitLog '已通过用户补丁层禁用 web-all 聚合插件行。'
 }
 
 # 确保兼容层先于会调用新设置 API 的第三方聚合包加载。
@@ -578,7 +595,19 @@ const { pathToFileURL } = require('node:url')
 ;(async () => {
   const { parse } = await import(pathToFileURL(require.resolve(process.env.DSH_YAML_MODULE)).href)
   const settings = parse(await readFile(process.env.DSH_SETTINGS_FILE, 'utf8'))
-  if (settings?.['agent-presets']?.default !== process.env.DSH_CODEX_PRESET_ID) process.exit(1)
+  const preferences = JSON.parse(process.env.DSH_PREFERENCE_TARGETS)
+  for (const preference of preferences) {
+    let actual = settings
+    for (const key of preference.path) {
+      // 逐层下钻；typeof null 也是 object，必须先用 == null 拦截。
+      if (actual == null || typeof actual !== 'object') {
+        actual = undefined
+        break
+      }
+      actual = actual[key]
+    }
+    if (actual !== preference.value) process.exit(1)
+  }
 })().catch((error) => {
   console.error(error)
   process.exit(1)
@@ -586,20 +615,20 @@ const { pathToFileURL } = require('node:url')
 '@
     $previousSettingsFile = $env:DSH_SETTINGS_FILE
     $previousYamlModule = $env:DSH_YAML_MODULE
-    $previousPresetId = $env:DSH_CODEX_PRESET_ID
+    $previousTargets = $env:DSH_PREFERENCE_TARGETS
     try {
         $env:DSH_SETTINGS_FILE = $SettingsFile
         $env:DSH_YAML_MODULE = $script:YamlModule
-        $env:DSH_CODEX_PRESET_ID = $CodexPresetId
+        $env:DSH_PREFERENCE_TARGETS = $DefaultPreferencesJson
         $verifyScript | & node
         if ($LASTEXITCODE -ne 0) {
-            throw '验证失败，默认 Agent 预设不是 Codex 模式。'
+            throw '验证失败，默认偏好设置写入不完整。'
         }
     }
     finally {
         $env:DSH_SETTINGS_FILE = $previousSettingsFile
         $env:DSH_YAML_MODULE = $previousYamlModule
-        $env:DSH_CODEX_PRESET_ID = $previousPresetId
+        $env:DSH_PREFERENCE_TARGETS = $previousTargets
     }
     $profileManifestPath = Join-Path $ProfileDirectory 'package.json'
     $profilePrefix = @(Get-Content -LiteralPath $profileManifestPath -Encoding Byte -TotalCount 3)
@@ -655,8 +684,8 @@ const { pathToFileURL } = require('node:url')
     Write-InitLog '文件、默认 Agent 预设与 Desktop Profile 插件验证通过。'
 }
 
-# 导出组合树并断言皮肤中心与宠物行确已禁用，防止补丁条目因行 id 变更或被移除而静默失效。
-function Test-SkinAndPetDisabled {
+# 导出组合树并断言全部禁用行确已生效，防止补丁条目因行 id 变更或被移除而静默失效。
+function Test-DisabledBundleRows {
     $dumpPath = Join-Path $script:TempDirectory 'profile-dump.yml'
     $previousErrorActionPreference = $ErrorActionPreference
     try {
@@ -709,7 +738,7 @@ const { pathToFileURL } = require('node:url')
         $env:DSH_DISABLE_TARGETS = $DisabledBundleRowsJson
         $verifyScript | & node
         if ($LASTEXITCODE -ne 0) {
-            throw '验证失败，皮肤中心或宠物插件未在 Desktop Profile 组合树中禁用。'
+            throw '验证失败，存在未在 Desktop Profile 组合树中禁用的聚合行。'
         }
     }
     finally {
@@ -717,7 +746,7 @@ const { pathToFileURL } = require('node:url')
         $env:DSH_YAML_MODULE = $previousYamlModule
         $env:DSH_DISABLE_TARGETS = $previousTargets
     }
-    Write-InitLog '已验证皮肤中心与宠物插件在组合树中禁用。'
+    Write-InitLog '已验证 web-all 聚合禁用行在组合树中生效。'
 }
 
 # 删除本次下载产生的临时目录，不保留初始化中间文件。
@@ -737,13 +766,13 @@ function Start-Initialization {
         Install-UserSkills
         Install-SettingsCompatPlugin
         Install-AgentPresets
-        Set-DefaultAgentPreset
+        Set-DefaultPreferences
         Add-MinimumReleaseAgeExcludes
         Install-DesktopPlugins
-        Disable-SkinAndPetRows
+        Disable-WebAllBundleRows
         Set-SettingsCompatBundleOrder
         Test-Installation
-        Test-SkinAndPetDisabled
+        Test-DisabledBundleRows
         Write-InitLog '初始化完成。首次使用 gpt-image-generator 时，Skill 会自动检测并询问缺失配置。请完全退出并重新启动 DSH Desktop。'
     }
     finally {
