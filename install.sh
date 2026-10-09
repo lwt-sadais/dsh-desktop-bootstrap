@@ -24,6 +24,7 @@ readonly PLUGIN_NAMES=(
   "dsh-plan-review-card"
   "dsh-reasoning-efforts"
   "dsh-free-search"
+  "dsh-browser"
 )
 readonly PLUGIN_SOURCES=(
   "link:${COMPAT_PLUGIN_DIR}"
@@ -37,6 +38,7 @@ readonly PLUGIN_SOURCES=(
   "github:lwt-sadais/dsh-plan-review-card#6250c6bf1a9f27a314708d4435d1dcf9c77e169c"
   "github:lwt-sadais/dsh-reasoning-efforts#eb66af3df2c99e5d5014bcedd61abb7d7c61a7d3"
   "dsh-free-search@0.4.24"
+  "dsh-browser@0.1.0"
 )
 readonly OBSOLETE_PLUGIN_NAMES=(
   "@linxin666/dsh-web-ui-all"

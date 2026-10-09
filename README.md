@@ -79,6 +79,7 @@ irm "https://raw.githubusercontent.com/lwt-sadais/dsh-desktop-bootstrap/main/ins
 - 脚本安装 `@linxin666/dsh-web-all@0.3.9` 作为 Web UI 聚合包，并先挂载仓库内置的 `dsh-settings-alpha1-compat`，为 Desktop 当前内置 Harness `0.1.2-alpha.1` 补齐第三方插件使用的 `settings.installSection` API；该兼容层在未来 Host 原生提供方法时自动跳过。脚本同时把 [`lwt-sadais/DSH-better-sidebar`](https://github.com/lwt-sadais/DSH-better-sidebar) 的固定适配提交作为同名顶层插件。该提交已包含通过验证的构建产物，不依赖已下架的 alpha.1 开发包执行现场构建；Fork 自带聚合重复挂载保护，因此运行时仍只有一个侧边栏实例。
 - DSH 的 pnpm 默认拒绝发布不足 24 小时的依赖。脚本会保留用户已有策略，仅将 Web UI 0.3.9 聚合包及其 17 个精确 `@linxin666/*@0.3.9` 依赖合并到 Desktop Profile 的 `minimumReleaseAgeExclude`；不会使用通配符、关闭 `minimumReleaseAge`，也不会通过 `--trust-lockfile` 跳过锁文件校验。
 - 脚本同时安装上游原版 `dsh-free-search@0.4.24`，为内置 `web_search` 提供多引擎免费搜索 provider（DuckDuckGo、Bing、SearXNG 等，无需 API key），注册进 Harness `ctx.web` seam，与官方 provider 共存；其网页设置页依赖 `dsh-settings-alpha1-compat` 补齐的 settings API，作者未在 `0.1.2-alpha.1` 上验证该插件。
+- 脚本同时安装上游原版 `dsh-browser@0.1.0`，提供 `browser_open`、`browser_click`、`browser_type`、`browser_eval`、`browser_screenshot` 等浏览器操作工具；插件仅含 `playwright-core`（不含浏览器二进制），启动时按 `chromium → chrome → msedge` 顺序探测可用浏览器，均不可用时 Agent 可用其自带 `browser_install` 工具执行 `npx playwright install chromium` 按需安装。
 - 如果 pnpm 拦截依赖构建脚本，脚本会先执行 `pnpm approve-builds !cpu-features`，明确拒绝 SSH 的可选原生加速依赖 `cpu-features`，避免没有 C++ 编译器的 Windows 电脑安装失败。
 - 排除 `cpu-features` 后，脚本会执行 `pnpm approve-builds --all` 批准其余全部待审批依赖构建脚本，然后仅重试失败的卸载或安装操作一次。
 - 下载产生的临时文件会在结束时自动清理；任一关键步骤失败时脚本返回非零退出状态。
@@ -168,7 +169,7 @@ agent-presets:
 mkdir -p "$HOME/.dsh/plugins/dsh-settings-alpha1-compat"
 cp -R plugins/dsh-settings-alpha1-compat/. "$HOME/.dsh/plugins/dsh-settings-alpha1-compat/"
 dsh plugin remove --profile desktop @linxin666/dsh-web-ui-all
-dsh plugin add --profile desktop link:$HOME/.dsh/plugins/dsh-settings-alpha1-compat @linxin666/dsh-web-all@0.3.9 github:lwt-sadais/DSH-better-sidebar#a4f184bdb269c63457bc6d373495da0ee90f02c3 github:lwt-sadais/dsh-at-file#6dbc6209a881c97ae094081e5fb8899a9f4b1b05 github:lwt-sadais/dsh-archived-sessions#0f75caef3d20ac02b2f7588c2524d94497036f9e github:lwt-sadais/dsh-git-diff#aa86ca609d75f6ca9a3e5a327f79b500e7400c5e github:lwt-sadais/dsh-git-history#980c5e13393d6453d1018c5a0091da2249d66537 github:lwt-sadais/dsh-local-file-reference#4dba61891126af8ae71cd327a8f9b72124450e93 github:lwt-sadais/dsh-plan-review-card#6250c6bf1a9f27a314708d4435d1dcf9c77e169c github:lwt-sadais/dsh-reasoning-efforts#eb66af3df2c99e5d5014bcedd61abb7d7c61a7d3 dsh-free-search@0.4.24
+dsh plugin add --profile desktop link:$HOME/.dsh/plugins/dsh-settings-alpha1-compat @linxin666/dsh-web-all@0.3.9 github:lwt-sadais/DSH-better-sidebar#a4f184bdb269c63457bc6d373495da0ee90f02c3 github:lwt-sadais/dsh-at-file#6dbc6209a881c97ae094081e5fb8899a9f4b1b05 github:lwt-sadais/dsh-archived-sessions#0f75caef3d20ac02b2f7588c2524d94497036f9e github:lwt-sadais/dsh-git-diff#aa86ca609d75f6ca9a3e5a327f79b500e7400c5e github:lwt-sadais/dsh-git-history#980c5e13393d6453d1018c5a0091da2249d66537 github:lwt-sadais/dsh-local-file-reference#4dba61891126af8ae71cd327a8f9b72124450e93 github:lwt-sadais/dsh-plan-review-card#6250c6bf1a9f27a314708d4435d1dcf9c77e169c github:lwt-sadais/dsh-reasoning-efforts#eb66af3df2c99e5d5014bcedd61abb7d7c61a7d3 dsh-free-search@0.4.24 dsh-browser@0.1.0
 ```
 
 > DSH Desktop 会为每次插件变更创建恢复事务。请等待上一条命令成功并完成恢复验证后再执行下一条；全部完成后完全退出并重新启动 DSH Desktop。
@@ -188,6 +189,7 @@ dsh plugin add --profile desktop link:$HOME/.dsh/plugins/dsh-settings-alpha1-com
 | `dsh-plan-review-card` | `0.1.2-alpha.1` | [`lwt-sadais/dsh-plan-review-card`](https://github.com/lwt-sadais/dsh-plan-review-card) | 结构化审查卡片；右上角悬浮入口直达会话全部卡片全文（历史卡片由主机路由回放）；点击卡片时自动展开统一侧边栏，侧边栏不可用时回退到页面根层 Portal 阅读栏 |
 | `dsh-reasoning-efforts` | `0.1.2-alpha.1` | [`lwt-sadais/dsh-reasoning-efforts`](https://github.com/lwt-sadais/dsh-reasoning-efforts) | 按模型原子配置 Provider 推理等级与输入能力；使用 alpha.1 `ctx.remote.settings` 读取和保存设置 |
 | `dsh-free-search` | 上游原版 `0.4.24` | [`DDDMUC/dsh-free-search`](https://github.com/DDDMUC/dsh-free-search) | 免费多引擎搜索 provider（DuckDuckGo/Bing/SearXNG 等，无需 API key）；作者声明兼容 alpha.2 及以上、未验证 alpha.1，设置页依赖兼容层补齐的 settings API |
+| `dsh-browser` | 上游原版 `0.1.0` | [`ben7am1n/dsh-browser`](https://github.com/ben7am1n/dsh-browser) | Playwright 驱动的 `browser_*` 浏览器操作工具集；仅含 `playwright-core`，启动时按 `chromium → chrome → msedge` 探测系统浏览器，均不可用时用自带 `browser_install` 工具按需安装 Chromium |
 
 > `@deepseek-ai/dsh-base` 和 `@deepseek-ai/dsh-web-app` 是 DSH Desktop Profile 的内置基础 Bundle，不作为第三方插件重复安装。
 
